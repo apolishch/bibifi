@@ -1,0 +1,259 @@
+#!/usr/bin/env ruby
+require 'optparse'
+require 'socket'
+require 'timeout'
+require 'json'
+require_relative 'validations.rb'
+require_relative 'common.rb'
+
+#
+# atm is a client program that simulates an ATM by providing
+# a mechanism for customers to interact with their bank accounts
+# stored on the bank server. atm allows customers to 
+# - create new accounts,
+# - deposit money,
+# - withdraw funds, and
+# - check their balances.
+# 
+# In all cases, these functions are achieved via communiations with
+# the bank. atm cannot store any state or write to any files except
+# the card-file. The card-file can be viewed as the "pin code" for
+# one's account; there is one card file per account.
+# 
+# Card files are created when atm is invoked with -n to create a new
+# account; otherwise, card files are only read, and not modified.
+#
+# Any invocation of the atm which does not follow the four enumerated
+# possibilities above should exit with return code 255 (printing nothing).
+# Noncompliance includes a missing account or mode of operation and
+# duplicated parameters. Note that parameters may be specified in any order.
+
+options = {}
+OptionParser.new do |opts|  
+  opts.banner = "Usage: atm -a <account> [-s <auth-file>] [-i <ip-address>] [-p <port>] [-c <card-file>]"
+  opts.separator  ""
+  opts.separator  "Options"
+
+  # Account
+  text = "The customer's account name."
+  opts.on("-a <account>","",text) do |input|
+    exit(EXIT_CODE) unless is_valid_account?(input)
+    options[:account] = input
+  end
+
+  # Auth File
+  text = "The name of the auth file. If not supplied, defaults to \"bank.auth\""
+  opts.on("-s <auth-file>","",text) do |input|
+    exit(EXIT_CODE) unless is_valid_auth_file?(input)
+    options[:auth_file] = input
+  end
+
+  # IP Address
+  text = "The IP address that bank is running on. The default value is \"127.0.0.1\"."
+  opts.on("-i <ip-address>","",text) do |input|
+    exit(EXIT_CODE) unless is_valid_ip?(input)
+    options[:ip] = input
+  end
+
+  # Port
+  text = "The port that bank should listen on. The default is 3000."
+  opts.on("-p <port>","",text) do |input|
+    exit(EXIT_CODE) unless is_valid_port?(input)
+    options[:port] = input
+  end
+
+  # Card File
+  text = "The customer's atm card file. The default value is the account " \
+  "name prepended to \".card\" (\"<account>.card\"). For example, if the " \
+  "account name was 55555, the default card file is \"55555.card\"."
+  opts.on("-c <card-file>","",text) do |input|
+    exit(EXIT_CODE) unless is_valid_card_file?(input)
+    options[:card_file] = input
+  end
+
+  ##
+  # Mode of Operations
+
+  # -n: Create a new account with the given balance.
+  text = "Create a new account with the given balance. The account must be" \
+  "unique (ie, the account must not already exist). The balance must be " \
+  "greater than or equal to 10.00. The given card file must not already " \
+  "exist. If any of these conditions do not hold, atm exits with a return" \
+  " code of 255. On success, both atm and bank print the account and initial" \
+  " balance to standard output, encoded as JSON. The account name is a JSON" \
+  " string with key \"account\", and the initial balance is a JSON number with" \
+  " key \"initial_balance\" (Example: {\"account\":\"55555\",\"initial_balance\":10.00})." \
+  " In addition, atm creates the card file for the new account " \
+  "(think of this as like an auto-generated pin)."
+  opts.on("-n <balance>","",text) do |input|
+    exit(EXIT_CODE) if options[:operation]
+    exit(EXIT_CODE) unless is_valid_balance?(input)
+    options[:operation] = "n"
+    options[:operation_value] = input
+  end
+
+  # -d: Deposit the amount of money specified
+  text = 'Deposit the amount of money specified. The amount must be greater' \
+  ' than 0.00. The specified account must exist, and the card file must be' \
+  ' associated with the given account (i.e., it must be the same file produced' \
+  ' by atm when the account was created). If any of these conditions do not hold,' \
+  ' atm exits with a return code of 255. On success, both atm and bank print the' \
+  ' account and deposit amount to standard output, encoded as JSON. The account ' \
+  'name is a JSON string with key "account", and the deposit amount is a JSON ' \
+  'number with key "deposit" (Example: {"account":"55555","deposit":20.00}).'
+  opts.on("-d <amount>","",text) do |input|
+    exit(EXIT_CODE) if options[:operation]
+    exit(EXIT_CODE) unless is_valid_amount?(input)
+    options[:operation] = "d"
+    options[:operation_value] = input
+  end
+
+  # -w: Withdraw the amount of money specified
+  text = 'Withdraw the amount of money specified. The amount must be greater ' \
+  'than 0.00, and the remaining balance must be nonnegative. The card file' \
+  ' must be associated with the specified account (i.e., it must be the same' \
+  ' file produced by atm when the account was created). The ATM exits with a ' \
+  'return code of 255 if any of these conditions are not true. On success, ' \
+  'both atm and bank print the account and withdraw amount to standard output,' \
+  ' encoded as JSON. The account name is a JSON string with key "account", and' \
+  ' the withdraw amount is a JSON number with key "withdraw" (Example:'\
+  ' {"account":"55555","withdraw":15.00}).'
+  opts.on("-w <amount>","",text) do |input|
+    exit(EXIT_CODE) if options[:operation]
+    exit(EXIT_CODE) unless is_valid_amount?(input)
+    options[:operation] = "w"
+    options[:operation_value] = input
+  end
+
+  # -g: Get the current balance of the account
+  text = 'Get the current balance of the account. The specified account must '\
+  'exist, and the card file must be associated with the account. Otherwise, '\
+  'atm exits with a return code of 255. On success, both atm and bank print '\
+  'the account and balance to stdout, encoded as JSON. The account name is '\
+  'a JSON string with key "account", and the balance is a JSON number with '\
+  'key "balance" (Example: {"account":"55555","balance":43.63}).'
+  opts.on("-g","",text) do |input|
+    exit(EXIT_CODE) if options[:operation]
+    options[:operation] = "g"
+  end
+
+end.parse!
+
+# Debug: print received options
+debug options.inspect
+
+# Default Parameters Values
+account         = options[:account]
+operation       = options[:operation]
+operation_value = options[:operation_value]
+ip              = options[:ip]        || "127.0.0.1"
+port            = (options[:port]     || "3000").to_i
+auth_file       = options[:auth_file] || "bank.auth"
+card_file       = options[:card_file] || "#{options[:account]}.card"
+
+# Mandatory parameters verification
+["account", "operation"].each do |var|
+    eval(
+        <<-VERIFICATION
+            unless #{var}
+                debug "Not specified argument: #{var}"
+                exit(EXIT_CODE)
+            end
+        VERIFICATION
+    )
+end
+
+# If the specified file cannot be opened,
+# the atm exits with a return code of 255.
+unless File.exist?(auth_file)
+  debug "File does not exist: #{auth_file}"
+  exit(EXIT_CODE)
+end
+
+begin
+  f = File.open(auth_file,  "r")
+rescue Errno::EACCES
+  debug "No permission to open file: #{auth_file}"
+  exit(EXIT_CODE)
+end
+
+begin
+    Socket.tcp(ip, port) {|sock|
+      # A timeout occurs if the other program does not respond
+      # within 10 seconds. If the atm observes the timeout, it
+      # should exit with return code 63
+      timeout(10) do
+        debug "timeout"
+        exit(63)
+      end
+
+      input = [
+            "-p",
+            port.to_s,
+            "-i",
+            ip,
+            "-a",
+            account,
+            "-c",
+            card_file,
+            "-#{operation}"
+        ]
+      # As -g does not have a value
+      # We only add the operation_value if not empty
+      input << operation_value if operation_value
+
+      message = {
+        input: input,
+        base64: false
+      }.to_json
+
+      sock.print message
+      sock.close_write
+      
+      result = sock.read
+      begin
+        result = JSON.parse(result)
+      rescue JSON::ParserError
+        debug "json parser error"
+        puts "protocol_error"
+        exit(63)
+      end
+
+      puts result
+    }
+rescue
+    # If an error is detected in the protocol's communication,
+    # atm should exit with return code 63, while bank should
+    # print "protocol_error" to stdout (followed by a newline)
+    # and roll back (i.e., undo any changes made by) the current
+    # transaction.
+
+    debug "generic socket rescue"
+    puts "protocol_error"
+    exit(63)
+end
+
+
+
+=begin
+    
+Missing
+    - -n operation must validate amount >= 10
+    - -n operation must verify if file exists
+    
+    - -d operation must be positive
+    - -d operation must verify if the account exists
+    - -d operation must verify if the card file matches the one used on creation
+
+    - -w operation must be positive
+    - -w operation remaining balance must be nonnegative
+    - -w operation must verify if the account exists
+    - -w operation must verify if the card file matches the one used on creation
+
+    - -g operation must verify if the account exists
+    - -g operation must verify if the card file matches the one used on creation
+    
+    >> Create code to create card files
+    >> Modify is_valid_balance? validation to support the conditions above
+    >> Tests
+=end
