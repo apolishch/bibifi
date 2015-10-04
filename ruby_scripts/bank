@@ -113,7 +113,12 @@ begin
           key = "operation_value" unless v=="-g"  # -g doesn't have a value
       end
 
-      # Index check
+      # Index check -- just to make sure that there is
+      # a next value followed by the key. E.g.,
+      # When the key is "-n" we supposed that there is
+      # the next value, which will be amount for instance.
+      # So we check if the index exists (index+1) as some
+      # keys doesn't need indexes, such as "-g".
       if key && (index + 1 <= client_input["input"].count)
         args[:"#{key}"] = client_input["input"][index + 1]
       end
@@ -148,8 +153,8 @@ begin
       exit(EXIT_CODE)
     end
 
-    puts output.to_json
-    client.puts output.to_json
+    puts output.to_json         # prints on console
+    client.puts output.to_json  # prints on socket
     client.close
   end
 rescue => e

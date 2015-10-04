@@ -1,9 +1,3 @@
-def debug(msg)
-  # Comment below to disable
-  # All debug messages
-  puts msg
-end
-
 # Numeric inputs are positive and provided in decimal without any
 # leading 0's (should match /(0|[1-9][0-9]*)/). Thus "42" is a valid
 # input number but the octal "052" or hexadecimal "0x2a" are not.
@@ -108,7 +102,7 @@ def are_valid_args?(args)
 
   # Card File
   if !args[:auth_file] || !is_valid_card_file?(args[:auth_file])
-    debug "are_valid_args? invalid card file"
+    debug "are_valid_args? invalid auth file"
     return false
   end
 

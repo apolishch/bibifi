@@ -227,7 +227,7 @@ if ["d","w","g"].include?(operation)
 
   # Check if they match (account/card_file), a.k.a Authentication
   unless card_file_contents == generate_hash(account)
-    debug "Invalid account / card file"
+    debug "Invalid account or card file"
     exit(EXIT_CODE)
   end
 end

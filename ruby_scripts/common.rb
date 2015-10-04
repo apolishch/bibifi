@@ -18,6 +18,11 @@ def generate_hash(value)
     ).strip()
 end
 
+def debug(msg)
+  # Comment below to disable all debug messages
+  puts msg
+end
+
 # All other errors, specified throughout this document or
 # unrecoverable errors not explicitly discussed, should prompt the
 # program to exit with return code 255

@@ -1,0 +1,10 @@
+Issues:
+- Socket Timeout isn't working yet; for some reason the connection dies at first
+- Bank crashes if client resets TCP connection
+- Need a "rescue" for all exceptions
+- I don't get why atm needs to receive the parameter "-s <auth-file>" if who actually controls it is the bank program. The only useful thing that comes to mind mind is that the bank program will read balances from the specified auth-file, but the bank program is said to start itself with a auth-file passed through CLI parameter.
+- Need to test extensively and write tests for it.
+
+Some info about my environment:
+- using: ruby 2.1.2p95 (2014-05-08) [x86_64-linux-gnu]
+- OS: Ubuntu
