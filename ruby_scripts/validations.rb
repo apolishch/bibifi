@@ -87,7 +87,7 @@ def is_valid_auth_file?(auth_file, silent=0)
 end
 
 def is_valid_card_file?(card_file)
-  result is_valid_auth_file?(card_file, 1)
+  result = is_valid_auth_file?(card_file, 1)
 
   debug "Invalid card_file: #{card_file}" unless result 
   return result
@@ -95,27 +95,38 @@ end
 
 def are_valid_args?(args)
 	# Account Name
-	if !args["account"] || !is_valid_account?(args["account"])
+	if !args[:account] || !is_valid_account?(args[:account])
+    debug "are_valid_args? invalid account"
 		return false
 	end
 
 	# Card File
-	if !args["card_file"] || !is_valid_card_file?(args["card_file"])
+	if !args[:card_file] || !is_valid_card_file?(args[:card_file])
+    debug "are_valid_args? invalid card file"
 		return false
 	end
 
+  # Card File
+  if !args[:auth_file] || !is_valid_card_file?(args[:auth_file])
+    debug "are_valid_args? invalid card file"
+    return false
+  end
+
 	# Operations
-	if !args["operation"] || !["-n","-d","-w","-g"].include?(args["operation"])
+	if !args[:operation] || !["-n","-d","-w","-g"].include?(args[:operation])
+    debug "are_valid_args? invalid operation"
 		return false
 	end
 
 	# -n
-	if args["operation"] == "-n" && !is_valid_balance?(args["operation_value"])
+	if args[:operation] == "-n" && !is_valid_balance?(args[:operation_value])
+    debug "are_valid_args? invalid balance for -n operation"
 		return false
 	end
 
 	# -d, -w
-	if ["-d","-w"].include?(args["operation"]) && !is_valid_amount?(args["operation_value"])
+	if ["-d","-w"].include?(args[:operation]) && !is_valid_amount?(args[:operation_value])
+    debug "are_valid_args? invalid amount for operations -d or -w"
 		return false
 	end
 

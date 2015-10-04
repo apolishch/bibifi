@@ -1,10 +1,12 @@
 #!/usr/bin/env ruby
-require 'optparse'
-require 'socket'
-require 'timeout'
-require 'json'
-require_relative 'validations.rb'
 require_relative 'common.rb'
+require_relative 'validations.rb'
+require_relative 'operations.rb'
+
+# bank is a server than simulates a bank, whose job is to keep track
+# of the balance of its customers. It will receive communications
+# from atm clients on the specified TCP port. Example interactions
+# with bank and the atm are given at the bottom of the main page.
 
 options = {}
 
@@ -62,105 +64,95 @@ end
 # and roll back (i.e., undo any changes made by) the current
 # transaction.
 server = TCPServer.new("127.0.0.1", port)
-loop do
-  client = server.accept    # Wait for a client to connect
+begin
+  loop do
+    client = server.accept    # Wait for a client to connect
 
-  # A timeout occurs if the other program does not respond
-  # within 10 seconds. If the atm observes the timeout, it
-  # should exit with return code 63, while if the bank observes it,
-  # it should print "protocol_error" to stdout (followed by a newline)
-  # and rollback the current transaction. The non-observing party
-  # need not do anything in particular.
-  timeout(10) do
-    debug "timeout"
-    client.puts "protocol_error"
-  end
+    # A timeout occurs if the other program does not respond
+    # within 10 seconds. If the atm observes the timeout, it
+    # should exit with return code 63, while if the bank observes it,
+    # it should print "protocol_error" to stdout (followed by a newline)
+    # and rollback the current transaction. The non-observing party
+    # need not do anything in particular.
+#    timeout(100) do
+#      debug "timeout"
+#      client.puts "protocol_error"
+#    end
 
-  client_input = client.gets
-  begin
-     client_input = JSON.parse(client_input)
-  rescue JSON::ParserError
-    debug "failed to parse json"
-    client.puts "protocol_error"
-  end
+    client_input = client.gets
+    debug "received #{client_input}"
 
-  # Verify Input
-  if !client_input["input"] || !client_input["input"].is_a?(Array)
-      debug "invalid input"
+    begin
+       client_input = JSON.parse(client_input)
+    rescue JSON::ParserError
+      debug "failed to parse json"
+      client.puts "protocol_error"
+    end
+
+    # Verify Input
+    if !client_input["input"] || !client_input["input"].is_a?(Array)
+        debug "invalid input"
+        client.puts "protocol_error"
+        client.close
+    end
+
+    # Extract arguments from client input
+    args = {}
+    client_input["input"].each_with_index do |v, index|
+      key = nil
+
+      case v
+        when "-a"
+          key = "account"
+        when "-c"
+          key = "card_file"
+        when "-s"
+          key = "auth_file"
+        when "-n", "-d", "-w", "-g"
+          args[:operation] = v
+          key = "operation_value" unless v=="-g"  # -g doesn't have a value
+      end
+
+      # Index check
+      if key && (index + 1 <= client_input["input"].count)
+        args[:"#{key}"] = client_input["input"][index + 1]
+      end
+    end
+
+    # Verify Input
+    if !are_valid_args?(args)
+      debug "invalid args"
       client.puts "protocol_error"
       client.close
-  end
-
-  # Extract arguments from client input
-  args = {}
-  client_input["input"].each_with_index do |v ,index|
-    key = nil
-
-    case v
-      when "-a"
-        key = "account"
-      when "-c"
-        key = "card_file"
-      when ["-n", "-d", "-w", "-g"].include?(v)
-        args[:operation] == v
-        key = "operation_value" unless v=="-g"  # -g doesn't have a value
+      next
     end
 
-    # Index check
-    if key && (index + 1 <= client_input["index"].count)
-      args[:"#{key}"] = client_input["input"][index + 1]
+    # Execute Operations
+    output = case args[:operation]
+      when "-n"
+        operation_n(args)
+      when "-d"
+        operation_d(args)
+      when "-w"
+        operation_w(args)
+      when "-g"
+        operation_g(args)
+      else
+        debug "invalid operation"
+        debug "args: #{args}"
+        exit(EXIT_CODE)
     end
-  end
 
-  # Verify Input
-  if !are_valid_args?(args)
-    client.puts "protocol_error"
+    unless output
+      debug "invalid output"
+      exit(EXIT_CODE)
+    end
+
+    puts output.to_json
+    client.puts output.to_json
     client.close
   end
-
-  # Execute Operations
-  output = case args[:operation]
-    when "-n"
-      # ... code to store money
-      {
-        :account => args[:account].to_s,
-        :initial_balance => ('%.2f' % args[:operation_value].to_f)
-      }
-
-    when "-d"
-      # ... code to deposit money
-
-      {
-        :account => args[:account].to_s,
-        :deposit => ('%.2f' % args[:operation_value].to_f)
-      }
-
-    when "-w"
-      # ... code to withdraw money
-      {
-        :account  => args[:account].to_s,
-        :withdraw => ('%.2f' % args[:operation_value].to_f)
-      }.to_json
-
-    when "-g"
-      # ... code to get balance
-      balance = 1.00 # dummy value!!
-
-      {
-        :account => args[:account].to_s,
-        :balance => ('%.2f' % balance.to_f)
-      }
-  end
-
-  client.puts output.json
-  client.close
+rescue => e
+  debug "generic error #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
+  exit(EXIT_CODE)
 end
-
-=begin
-  
-- Missing code to execute operations (above)
-- Missing proper validation for operation (are_valid_args?)
-  Checks must be the same as listed on the atm missing things
-  In the end of the file
-  
-=end

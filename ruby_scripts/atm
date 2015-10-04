@@ -1,10 +1,6 @@
 #!/usr/bin/env ruby
-require 'optparse'
-require 'socket'
-require 'timeout'
-require 'json'
-require_relative 'validations.rb'
 require_relative 'common.rb'
+require_relative 'validations.rb'
 
 #
 # atm is a client program that simulates an ATM by providing
@@ -88,6 +84,11 @@ OptionParser.new do |opts|
   opts.on("-n <balance>","",text) do |input|
     exit(EXIT_CODE) if options[:operation]
     exit(EXIT_CODE) unless is_valid_balance?(input)
+    unless input.to_f >= 10.00
+      debug "Input lesser than 10"
+      exit(EXIT_CODE) 
+    end
+
     options[:operation] = "n"
     options[:operation_value] = input
   end
@@ -104,6 +105,10 @@ OptionParser.new do |opts|
   opts.on("-d <amount>","",text) do |input|
     exit(EXIT_CODE) if options[:operation]
     exit(EXIT_CODE) unless is_valid_amount?(input)
+    unless input.to_f > 0.00
+      debug "Input lesser than 0"
+      exit(EXIT_CODE) 
+    end
     options[:operation] = "d"
     options[:operation_value] = input
   end
@@ -121,6 +126,10 @@ OptionParser.new do |opts|
   opts.on("-w <amount>","",text) do |input|
     exit(EXIT_CODE) if options[:operation]
     exit(EXIT_CODE) unless is_valid_amount?(input)
+    unless input.to_f > 0.00
+      debug "Input lesser than 0"
+      exit(EXIT_CODE) 
+    end
     options[:operation] = "w"
     options[:operation_value] = input
   end
@@ -137,7 +146,7 @@ OptionParser.new do |opts|
     options[:operation] = "g"
   end
 
-end.parse!
+end.parse! #rescue OptionParser::MissingArgument
 
 # Debug: print received options
 debug options.inspect
@@ -177,15 +186,64 @@ rescue Errno::EACCES
   exit(EXIT_CODE)
 end
 
+#
+# ================= OPERATION SPECIFIC
+#
+
+if operation == "n"
+  # Create Card File if operation is "-n"
+  if File.exist?(card_file)
+    debug "Card File exists: #{card_file}"
+    exit(EXIT_CODE)
+  end
+
+  begin
+      File.open(card_file, "w") do |f|
+        f << generate_hash(account)
+      end
+  rescue Errno::EACCES
+    debug "Could not create: #{card_file}"
+    exit(EXIT_CODE)
+  end
+end
+
+if ["d","w","g"].include?(operation)
+  # Check if account/card exists
+  begin
+    f = File.open(card_file,  "r")
+  rescue Errno::EACCES
+    debug "No permission to open file: #{card_file}"
+    exit(EXIT_CODE)
+  end
+
+  # Is its size >= 1 MB?
+  if (File.size(card_file).to_f / 1024000) >= 1
+    debug "Card file too big: #{File.size(card_file).to_f}"
+    exit(EXIT_CODE)
+  end
+
+  # Read Contents
+  card_file_contents = File.open(card_file, "rb").read
+
+  # Check if they match (account/card_file), a.k.a Authentication
+  unless card_file_contents == generate_hash(account)
+    debug "Invalid account / card file"
+    exit(EXIT_CODE)
+  end
+end
+
+## TCP Communication w/ BANK
+# 
+
 begin
     Socket.tcp(ip, port) {|sock|
       # A timeout occurs if the other program does not respond
       # within 10 seconds. If the atm observes the timeout, it
       # should exit with return code 63
-      timeout(10) do
-        debug "timeout"
-        exit(63)
-      end
+      #timeout(100) do
+      #  debug "timeout"
+      #  exit(63)
+      #end
 
       input = [
             "-p",
@@ -196,6 +254,8 @@ begin
             account,
             "-c",
             card_file,
+            "-s",
+            auth_file,
             "-#{operation}"
         ]
       # As -g does not have a value
@@ -209,17 +269,23 @@ begin
 
       sock.print message
       sock.close_write
-      
-      result = sock.read
+      raw_result = sock.read
+
       begin
-        result = JSON.parse(result)
+        result = JSON.parse(raw_result)
       rescue JSON::ParserError
         debug "json parser error"
         puts "protocol_error"
         exit(63)
       end
 
-      puts result
+      # Exit when bank announce an error / violation
+      if result["error"]
+        debug "Exiting as bank said to #{result}"
+        exit(EXIT_CODE)
+      end
+
+      puts raw_result
     }
 rescue
     # If an error is detected in the protocol's communication,
@@ -232,28 +298,3 @@ rescue
     puts "protocol_error"
     exit(63)
 end
-
-
-
-=begin
-    
-Missing
-    - -n operation must validate amount >= 10
-    - -n operation must verify if file exists
-    
-    - -d operation must be positive
-    - -d operation must verify if the account exists
-    - -d operation must verify if the card file matches the one used on creation
-
-    - -w operation must be positive
-    - -w operation remaining balance must be nonnegative
-    - -w operation must verify if the account exists
-    - -w operation must verify if the card file matches the one used on creation
-
-    - -g operation must verify if the account exists
-    - -g operation must verify if the card file matches the one used on creation
-    
-    >> Create code to create card files
-    >> Modify is_valid_balance? validation to support the conditions above
-    >> Tests
-=end

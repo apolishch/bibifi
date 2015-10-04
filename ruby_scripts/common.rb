@@ -1,7 +1,22 @@
+require 'optparse'
+require 'socket'
+require 'timeout'
+require 'json'
+require 'openssl'
+
 Signal.trap('INT')  { exit 0 } # Trap ^C      == "INT"
 Signal.trap('TERM') { exit 0 } # Trap `Kill ` == "TERM"
 
-EXIT_CODE = 255
+SECRET_KEY = 'HUDFaSDh9130fsaklrm1d>>>Dsax__+d1'
+EXIT_CODE  = 255
+
+def generate_hash(value)
+	OpenSSL::HMAC.hexdigest(
+    	OpenSSL::Digest.new('sha256'),
+    	SECRET_KEY,
+    	value
+    ).strip()
+end
 
 # All other errors, specified throughout this document or
 # unrecoverable errors not explicitly discussed, should prompt the
