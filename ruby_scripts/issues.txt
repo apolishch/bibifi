@@ -4,10 +4,12 @@ Issues:
 - Need a "rescue" for all exceptions
 - I don't get why atm needs to receive the parameter "-s <auth-file>" if who actually controls it is the bank program. The only useful thing that comes to mind mind is that the bank program will read balances from the specified auth-file, but the bank program is said to start itself with a auth-file passed through CLI parameter.
 - Need to test extensively and write tests for it.
+- There is no official spec on ATM to pass base64 args to BANK. Do we need to create that?
 
 Security:
+- We must authenticate ATM requests to prevent direct input on the socket from non atm programs
 - We could block the account after X invalid attempts to prevent brute force
-- We could sign all balance entries using SECRET KEY so bogus entries won't be accepted
+- We could sign all balance entries using SECRET KEY so bogus entries won't be accepted if the file somehow be tampered
 - Although HMAC w/ SHA256 is a very good solution used for our goal, there is no confidentiality, so the account names and values are passing in clear through the socket. TLS could solve it, but we will increase the attack surface a lot ...
 - Just to let you know, the TCPServer used by this ruby script is very simple, single thread. Easy to deny its services.
 - Limit amount of activies per time frame may be interesting to prevent fraud if these accounts were real

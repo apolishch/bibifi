@@ -13,7 +13,8 @@ def operation_n(args)
 	end
 
 	File.open(args[:auth_file], "a") do |f|
-		f << "#{args[:account]};d;#{args[:operation_value]}\n"
+		f << "#{args[:account]};n;;#{Time.now}\n"
+		f << "#{args[:account]};d;#{args[:operation_value]};#{Time.now}\n"
 	end
 
     {
@@ -37,7 +38,7 @@ def operation_d(args)
 	end
 
 	File.open(args[:auth_file], "a") do |f|
-		f << "#{args[:account]};d;#{args[:operation_value]}\n"
+		f << "#{args[:account]};d;#{args[:operation_value]};#{Time.now}\n"
 	end
 
     {
@@ -74,7 +75,7 @@ def operation_w(args)
 	end
 
 	File.open(args[:auth_file], "a") do |f|
-		f << "#{args[:account]};w;#{args[:operation_value]}\n"
+		f << "#{args[:account]};w;#{args[:operation_value]};#{Time.now}\n"
 	end
 
     {
@@ -103,6 +104,10 @@ def operation_g(args)
 
 	unless found_account
 		return { :error => "Account not found"}
+	end
+
+	File.open(args[:auth_file], "a") do |f|
+		f << "#{args[:account]};g;#{args[:operation_value]};#{Time.now}\n"
 	end
 
     {
