@@ -201,14 +201,23 @@ if operation == "n"
       File.open(card_file, "w") do |f|
         f << generate_hash(account)
       end
+  rescue Errno::ENOENT
+    debug "Could not create: #{card_file} | ENOENT"
+    exit(EXIT_CODE)
   rescue Errno::EACCES
-    debug "Could not create: #{card_file}"
+    debug "Could not create: #{card_file} | EACCES"
     exit(EXIT_CODE)
   end
 end
 
 if ["d","w","g"].include?(operation)
   # Check if account/card exists
+  unless File.exist(card_file)
+    debug "File not found: #{card_file}"
+    exit(EXIT_CODE)
+  end
+
+  # Check if has permission to open file
   begin
     f = File.open(card_file,  "r")
   rescue Errno::EACCES
@@ -276,6 +285,7 @@ begin
       rescue JSON::ParserError
         debug "json parser error"
         puts "protocol_error"
+        STDOUT.flush
         exit(63)
       end
 
@@ -286,6 +296,7 @@ begin
       end
 
       puts raw_result
+      STDOUT.flush
     }
 rescue =>e 
     # If an error is detected in the protocol's communication,
@@ -296,5 +307,6 @@ rescue =>e
 
     debug "generic socket rescue: #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
     puts "protocol_error"
+    STDOUT.flush
     exit(63)
 end

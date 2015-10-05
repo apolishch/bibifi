@@ -11,10 +11,10 @@ SECRET_KEY = 'HUDFaSDh9130fsaklrm1d>>>Dsax__+d1'
 EXIT_CODE  = 255
 
 def generate_hash(value)
-	OpenSSL::HMAC.hexdigest(
-    	OpenSSL::Digest.new('sha256'),
-    	SECRET_KEY,
-    	value
+    OpenSSL::HMAC.hexdigest(
+        OpenSSL::Digest.new('sha256'),
+        SECRET_KEY,
+        value
     ).strip()
 end
 
@@ -29,6 +29,6 @@ end
 # >>>> it's from RAILS 
 # >>>> http://api.rubyonrails.org/classes/ActiveSupport/Rescuable/ClassMethods.html
 #rescue_from 'SystemCallError' do |e|
-	#debug e.class.name.to_s
+    #debug e.class.name.to_s
     #exit(EXIT_CODE)
 #end

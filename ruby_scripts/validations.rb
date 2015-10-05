@@ -11,7 +11,7 @@ def is_valid_balance?(balance, silent=0)
     # The interpretation of the fractional amount v is that of having
     # value equal to v/100 of a whole amount (akin to cents and dollars in
     # US currency). Balances are bounded from 0.00 to 4294967295.99.
-    if balance =~ /^(\d{1,10}).(\d{2})$/
+    if balance[0] != "0" && balance =~ /^(\d{1,10}).(\d{2})$/
         balance = balance.to_f
         if balance >= 0.0 && balance <= 4294967295.99
             return true
@@ -88,17 +88,17 @@ def is_valid_card_file?(card_file)
 end
 
 def are_valid_args?(args)
-	# Account Name
-	if !args[:account] || !is_valid_account?(args[:account])
+  # Account Name
+  if !args[:account] || !is_valid_account?(args[:account])
     debug "are_valid_args? invalid account"
-		return false
-	end
+    return false
+  end
 
-	# Card File
-	if !args[:card_file] || !is_valid_card_file?(args[:card_file])
+  # Card File
+  if !args[:card_file] || !is_valid_card_file?(args[:card_file])
     debug "are_valid_args? invalid card file"
-		return false
-	end
+    return false
+  end
 
   # Card File
   if !args[:auth_file] || !is_valid_card_file?(args[:auth_file])
@@ -106,23 +106,23 @@ def are_valid_args?(args)
     return false
   end
 
-	# Operations
-	if !args[:operation] || !["-n","-d","-w","-g"].include?(args[:operation])
+  # Operations
+  if !args[:operation] || !["-n","-d","-w","-g"].include?(args[:operation])
     debug "are_valid_args? invalid operation"
-		return false
-	end
+    return false
+  end
 
-	# -n
-	if args[:operation] == "-n" && !is_valid_balance?(args[:operation_value])
+  # -n
+  if args[:operation] == "-n" && !is_valid_balance?(args[:operation_value])
     debug "are_valid_args? invalid balance for -n operation"
-		return false
-	end
+    return false
+  end
 
-	# -d, -w
-	if ["-d","-w"].include?(args[:operation]) && !is_valid_amount?(args[:operation_value])
+  # -d, -w
+  if ["-d","-w"].include?(args[:operation]) && !is_valid_amount?(args[:operation_value])
     debug "are_valid_args? invalid amount for operations -d or -w"
-		return false
-	end
+    return false
+  end
 
-	return true
+  return true
 end

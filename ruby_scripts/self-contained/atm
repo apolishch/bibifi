@@ -12,10 +12,10 @@ SECRET_KEY = 'HUDFaSDh9130fsaklrm1d>>>Dsax__+d1'
 EXIT_CODE  = 255
 
 def generate_hash(value)
-  OpenSSL::HMAC.hexdigest(
-      OpenSSL::Digest.new('sha256'),
-      SECRET_KEY,
-      value
+    OpenSSL::HMAC.hexdigest(
+        OpenSSL::Digest.new('sha256'),
+        SECRET_KEY,
+        value
     ).strip()
 end
 
@@ -27,6 +27,12 @@ end
 # All other errors, specified throughout this document or
 # unrecoverable errors not explicitly discussed, should prompt the
 # program to exit with return code 255
+# >>>> it's from RAILS 
+# >>>> http://api.rubyonrails.org/classes/ActiveSupport/Rescuable/ClassMethods.html
+#rescue_from 'SystemCallError' do |e|
+    #debug e.class.name.to_s
+    #exit(EXIT_CODE)
+#end
 
 # Numeric inputs are positive and provided in decimal without any
 # leading 0's (should match /(0|[1-9][0-9]*)/). Thus "42" is a valid
@@ -41,7 +47,7 @@ def is_valid_balance?(balance, silent=0)
     # The interpretation of the fractional amount v is that of having
     # value equal to v/100 of a whole amount (akin to cents and dollars in
     # US currency). Balances are bounded from 0.00 to 4294967295.99.
-    if balance =~ /^(\d{1,10}).(\d{2})$/
+    if balance[0] != "0" && balance =~ /^(\d{1,10}).(\d{2})$/
         balance = balance.to_f
         if balance >= 0.0 && balance <= 4294967295.99
             return true
@@ -356,14 +362,23 @@ if operation == "n"
       File.open(card_file, "w") do |f|
         f << generate_hash(account)
       end
+  rescue Errno::ENOENT
+    debug "Could not create: #{card_file} | ENOENT"
+    exit(EXIT_CODE)
   rescue Errno::EACCES
-    debug "Could not create: #{card_file}"
+    debug "Could not create: #{card_file} | EACCES"
     exit(EXIT_CODE)
   end
 end
 
 if ["d","w","g"].include?(operation)
   # Check if account/card exists
+  unless File.exist(card_file)
+    debug "File not found: #{card_file}"
+    exit(EXIT_CODE)
+  end
+
+  # Check if has permission to open file
   begin
     f = File.open(card_file,  "r")
   rescue Errno::EACCES
@@ -431,6 +446,7 @@ begin
       rescue JSON::ParserError
         debug "json parser error"
         puts "protocol_error"
+        STDOUT.flush
         exit(63)
       end
 
@@ -441,6 +457,7 @@ begin
       end
 
       puts raw_result
+      STDOUT.flush
     }
 rescue =>e 
     # If an error is detected in the protocol's communication,
@@ -451,5 +468,6 @@ rescue =>e
 
     debug "generic socket rescue: #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
     puts "protocol_error"
+    STDOUT.flush
     exit(63)
 end
