@@ -20,7 +20,7 @@ end
 
 def debug(msg)
   # Comment below to disable all debug messages
-  puts msg
+  #puts msg
 end
 
 # All other errors, specified throughout this document or
