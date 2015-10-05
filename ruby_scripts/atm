@@ -287,14 +287,14 @@ begin
 
       puts raw_result
     }
-rescue
+rescue =>e 
     # If an error is detected in the protocol's communication,
     # atm should exit with return code 63, while bank should
     # print "protocol_error" to stdout (followed by a newline)
     # and roll back (i.e., undo any changes made by) the current
     # transaction.
 
-    debug "generic socket rescue"
+    debug "generic socket rescue: #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
     puts "protocol_error"
     exit(63)
 end
