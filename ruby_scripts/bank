@@ -154,9 +154,12 @@ begin
       exit(EXIT_CODE)
     end
 
-    puts output.to_json         # prints on console
-    STDOUT.flush
-    client.puts output.to_json  # prints on socket
+    unless output[:error]
+      puts output.to_json         # prints on console
+      STDOUT.flush
+    end
+
+    client.puts output.to_json    # prints on socket
     client.close
   end
 rescue => e
