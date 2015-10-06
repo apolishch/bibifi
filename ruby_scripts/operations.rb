@@ -19,7 +19,7 @@ def operation_n(args)
 
     {
         :account => args[:account].to_s,
-        :initial_balance => (args[:operation_value].to_f)
+        :initial_balance => args[:operation_value].to_f.round(2)
     }
 end
 
@@ -43,7 +43,7 @@ def operation_d(args)
 
     {
         :account => args[:account].to_s,
-        :deposit => (args[:operation_value].to_f)
+        :deposit => args[:operation_value].to_f.round(2)
     }
 end
 
@@ -80,7 +80,7 @@ def operation_w(args)
 
     {
         :account  => args[:account].to_s,
-        :withdraw => (args[:operation_value].to_f)
+        :withdraw => args[:operation_value].to_f.round(2)
     }
 end
 
