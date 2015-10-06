@@ -373,7 +373,7 @@ end
 
 if ["d","w","g"].include?(operation)
   # Check if account/card exists
-  unless File.exist(card_file)
+  unless File.exist?(card_file)
     debug "File not found: #{card_file}"
     exit(EXIT_CODE)
   end
