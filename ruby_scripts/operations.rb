@@ -70,7 +70,7 @@ def operation_w(args)
         return { :error => "Account not found"}
     end
 
-    if balance - args[:operation_value].to_f < 0
+    if balance.round(2) - args[:operation_value].to_f < 0
         return { :error => "Invalid amount"}
     end
 
