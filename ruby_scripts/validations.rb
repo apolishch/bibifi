@@ -11,11 +11,14 @@ def is_valid_balance?(balance, silent=0)
     # The interpretation of the fractional amount v is that of having
     # value equal to v/100 of a whole amount (akin to cents and dollars in
     # US currency). Balances are bounded from 0.00 to 4294967295.99.
-    if balance[0] != "0" && balance =~ /^(\d{1,10}).(\d{2})$/
+    if balance =~ /^(\d{1,10}).(\d{2})$/
+      left_part = balance.split(".")[0]
+      if left_part == "0" || left_part[0] != "0"
         balance = balance.to_f
         if balance >= 0.0 && balance <= 4294967295.99
             return true
         end
+      end
     end
 
     debug "Invalid balance: #{balance}" unless silent
