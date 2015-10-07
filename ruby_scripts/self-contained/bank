@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby
+#!/usr/bin/ruby
 require 'optparse'
 require 'socket'
 require 'timeout'
@@ -280,6 +280,7 @@ def operation_g(args)
         :balance => (balance.to_f)
     }
 end
+
 
 # bank is a server than simulates a bank, whose job is to keep track
 # of the balance of its customers. It will receive communications

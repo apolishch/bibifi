@@ -115,3 +115,4 @@ def operation_g(args)
         :balance => (balance.to_f)
     }
 end
+

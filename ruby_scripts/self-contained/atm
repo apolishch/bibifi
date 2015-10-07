@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby
+#!/usr/bin/ruby
 require 'optparse'
 require 'socket'
 require 'timeout'
@@ -162,6 +162,7 @@ def are_valid_args?(args)
 
   return true
 end
+
 
 #
 # atm is a client program that simulates an ATM by providing

@@ -1,3 +1,4 @@
+#!/usr/bin/ruby
 require 'optparse'
 require 'socket'
 require 'timeout'
@@ -32,3 +33,4 @@ end
     #debug e.class.name.to_s
     #exit(EXIT_CODE)
 #end
+
