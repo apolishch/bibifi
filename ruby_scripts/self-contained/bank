@@ -289,7 +289,7 @@ end
 
 options = {}
 
-OptionParser.new do |opts|  
+optparse = OptionParser.new do |opts|  
   opts.banner = "Usage: bank [-p <port>] [-s <auth-file>]"
   opts.separator  ""
   opts.separator  "Options"
@@ -305,7 +305,20 @@ OptionParser.new do |opts|
     exit(EXIT_CODE) unless is_valid_auth_file?(input)
     options[:auth_file] = input
   end
-end.parse!
+end
+
+begin
+  optparse.parse!
+rescue OptionParser::MissingArgument, OptionParser::InvalidOption
+  debug "invalid arguments #{options.inspect}"
+  exit(EXIT_CODE)
+end
+
+# Check required conditions
+unless ARGV.empty?
+  debug "Extra parameters"
+  exit(EXIT_CODE)
+end
 
 # Debug: print received options
 debug options.inspect

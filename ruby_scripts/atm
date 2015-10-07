@@ -24,7 +24,7 @@ require_relative 'validations.rb'
 # duplicated parameters. Note that parameters may be specified in any order.
 
 options = {}
-OptionParser.new do |opts|  
+optparse = OptionParser.new do |opts|  
   opts.banner = "Usage: atm -a <account> [-s <auth-file>] [-i <ip-address>] [-p <port>] [-c <card-file>]"
   opts.separator  ""
   opts.separator  "Options"
@@ -145,7 +145,20 @@ OptionParser.new do |opts|
     options[:operation] = "g"
   end
 
-end.parse! #rescue OptionParser::MissingArgument
+end
+
+begin
+  optparse.parse!
+rescue OptionParser::MissingArgument, OptionParser::InvalidOption
+  debug "invalid arguments #{options.inspect}"
+  exit(EXIT_CODE)
+end
+
+# Check required conditions
+unless ARGV.empty?
+  debug "Extra parameters"
+  exit(EXIT_CODE)
+end
 
 # Debug: print received options
 debug options.inspect
