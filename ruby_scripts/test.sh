@@ -23,3 +23,6 @@ cd "/root/install/tests/"
 ./run_tests.py performance/8.json
 ./run_tests.py performance/9.json
 ./run_tests.py performance/10.json
+
+./run_tests.py core/invalid1.json
+./run_tests.py core/timeout1.json
