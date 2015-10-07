@@ -33,7 +33,7 @@ end
 def is_valid_account?(account)
   if account.length >= 1 \
     && account.length <= 250 \
-    && account =~ /[_\-\.0-9a-z]/
+    && account =~ /\A[a-z0-9_\-\.]+\Z/
       return true
   end
 
@@ -72,7 +72,7 @@ def is_valid_auth_file?(auth_file, silent=0)
   if ![".",".."].include?(auth_file) \
     && auth_file.length >= 1 \
     && auth_file.length <= 255 \
-    && auth_file =~ /[_\-\.0-9a-z]/
+    && auth_file =~ /\A[a-z0-9_\-\.]+\Z/
       return true
   end
 
