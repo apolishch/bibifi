@@ -272,12 +272,12 @@ def operation_g(args)
     end
 
     File.open(args[:auth_file], "a") do |f|
-        f << "#{args[:account]};g;#{args[:operation_value]};#{Time.now}\n"
+        f << "#{args[:account]};g;;#{Time.now}\n"
     end
 
     {
         :account => args[:account].to_s,
-        :balance => (balance.to_f)
+        :balance => balance.to_f.round(2)
     }
 end
 
