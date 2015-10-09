@@ -1,6 +1,8 @@
-require_relative 'common.rb'
-require_relative 'validations.rb'
-
+#!/usr/bin/env ruby
+#require_relative 'common.rb'
+#require_relative 'validations.rb'
+require '/Users/abraham/github/bibifi/ruby_scripts/common.rb'
+require '/Users/abraham/github/bibifi/ruby_scripts/validations.rb'
 #
 # atm is a client program that simulates an ATM by providing
 # a mechanism for customers to interact with their bank accounts
@@ -24,7 +26,7 @@ require_relative 'validations.rb'
 # duplicated parameters. Note that parameters may be specified in any order.
 
 options = {}
-optparse = OptionParser.new do |opts|  
+optparse = OptionParser.new do |opts|
   opts.banner = "Usage: atm -a <account> [-s <auth-file>] [-i <ip-address>] [-p <port>] [-c <card-file>]"
   opts.separator  ""
   opts.separator  "Options"
@@ -172,6 +174,7 @@ port            = (options[:port]     || "3000").to_i
 auth_file       = options[:auth_file] || "bank.auth"
 card_file       = options[:card_file] || "#{options[:account]}.card"
 
+
 # Mandatory parameters verification
 ["account", "operation"].each do |var|
     eval(
@@ -257,13 +260,14 @@ end
 # 
 
 begin
+  Timeout::timeout(10) do
     Socket.tcp(ip, port) {|sock|
       # A timeout occurs if the other program does not respond
       # within 10 seconds. If the atm observes the timeout, it
       # should exit with return code 63
-      #timeout(100) do
+      #timeout(1000) do
       #  debug "timeout"
-      #  exit(63)
+      #  exit(PROTOCOL_EXIT_CODE)
       #end
 
       input = [
@@ -296,9 +300,8 @@ begin
         result = JSON.parse(raw_result)
       rescue JSON::ParserError
         debug "json parser error"
-        puts "protocol_error"
         STDOUT.flush
-        exit(63)
+        exit(PROTOCOL_EXIT_CODE)
       end
 
       # Exit when bank announce an error / violation
@@ -310,6 +313,7 @@ begin
       puts raw_result
       STDOUT.flush
     }
+  end
 rescue =>e 
     # If an error is detected in the protocol's communication,
     # atm should exit with return code 63, while bank should
@@ -318,7 +322,7 @@ rescue =>e
     # transaction.
 
     debug "generic socket rescue: #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
-    puts "protocol_error"
+    #puts "protocol_error"
     STDOUT.flush
-    exit(63)
+    exit(PROTOCOL_EXIT_CODE)
 end

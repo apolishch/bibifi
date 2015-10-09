@@ -1,6 +1,11 @@
-require_relative 'common.rb'
-require_relative 'validations.rb'
-require_relative 'operations.rb'
+#!/usr/bin/env ruby
+require '/Users/abraham/github/bibifi/ruby_scripts/common.rb'
+require '/Users/abraham/github/bibifi/ruby_scripts/validations.rb'
+require '/Users/abraham/github/bibifi/ruby_scripts/operations.rb'
+require 'io/console'
+#require_relative 'common.rb'
+#require_relative 'validations.rb'
+#require_relative 'operations.rb'
 
 # bank is a server than simulates a bank, whose job is to keep track
 # of the balance of its customers. It will receive communications
@@ -79,100 +84,94 @@ end
 server = TCPServer.new("127.0.0.1", port)
 begin
   loop do
-    client = server.accept    # Wait for a client to connect
+    ios = IO.select([server], nil, nil, 10)
+    if (ios)
+      client = server.accept    # Wait for a client to connect
 
-    # A timeout occurs if the other program does not respond
-    # within 10 seconds. If the atm observes the timeout, it
-    # should exit with return code 63, while if the bank observes it,
-    # it should print "protocol_error" to stdout (followed by a newline)
-    # and rollback the current transaction. The non-observing party
-    # need not do anything in particular.
-#    timeout(100) do
-#      debug "timeout"
-#      client.puts "protocol_error"
-#    end
+      client_input = client.gets
+      debug "received #{client_input}"
+      begin
+        client_input = JSON.parse(client_input)
+      rescue JSON::ParserError
+        debug "failed to parse json"
+        puts "protocol_error"
+      end
 
-    client_input = client.gets
-    debug "received #{client_input}"
+      # Verify Input
+      #puts client_input["input"].is_a?(Array)
+      if !client_input["input"] || !client_input["input"].is_a?(Array)
+          debug "invalid input"
+          puts "protocol_error"
+          client.close
+      end
 
-    begin
-       client_input = JSON.parse(client_input)
-    rescue JSON::ParserError
-      debug "failed to parse json"
-      client.puts "protocol_error"
-    end
+      # Extract arguments from client input
+      args = {}
+      client_input["input"].each_with_index do |v, index|
+        key = nil
 
-    # Verify Input
-    if !client_input["input"] || !client_input["input"].is_a?(Array)
-        debug "invalid input"
-        client.puts "protocol_error"
+        case v
+          when "-a"
+            key = "account"
+          when "-c"
+            key = "card_file"
+          when "-s"
+            key = "auth_file"
+          when "-n", "-d", "-w", "-g"
+            args[:operation] = v
+            key = "operation_value" unless v=="-g"  # -g doesn't have a value
+        end
+
+        # Index check -- just to make sure that there is
+        # a next value followed by the key. E.g.,
+        # When the key is "-n" we supposed that there is
+        # the next value, which will be amount for instance.
+        # So we check if the index exists (index+1) as some
+        # keys doesn't need indexes, such as "-g".
+        if key && (index + 1 <= client_input["input"].count)
+          args[:"#{key}"] = client_input["input"][index + 1]
+        end
+      end
+
+      # Verify Input
+      if !are_valid_args?(args)
+        debug "invalid args"
+        puts "protocol_error"
         client.close
-    end
-
-    # Extract arguments from client input
-    args = {}
-    client_input["input"].each_with_index do |v, index|
-      key = nil
-
-      case v
-        when "-a"
-          key = "account"
-        when "-c"
-          key = "card_file"
-        when "-s"
-          key = "auth_file"
-        when "-n", "-d", "-w", "-g"
-          args[:operation] = v
-          key = "operation_value" unless v=="-g"  # -g doesn't have a value
+        next
       end
 
-      # Index check -- just to make sure that there is
-      # a next value followed by the key. E.g.,
-      # When the key is "-n" we supposed that there is
-      # the next value, which will be amount for instance.
-      # So we check if the index exists (index+1) as some
-      # keys doesn't need indexes, such as "-g".
-      if key && (index + 1 <= client_input["input"].count)
-        args[:"#{key}"] = client_input["input"][index + 1]
+      # Execute Operations
+      output = case args[:operation]
+        when "-n"
+          operation_n(args)
+        when "-d"
+          operation_d(args)
+        when "-w"
+          operation_w(args)
+        when "-g"
+          operation_g(args)
+        else
+          debug "invalid operation"
+          debug "args: #{args}"
+          exit(EXIT_CODE)
       end
-    end
 
-    # Verify Input
-    if !are_valid_args?(args)
-      debug "invalid args"
-      client.puts "protocol_error"
-      client.close
-      next
-    end
-
-    # Execute Operations
-    output = case args[:operation]
-      when "-n"
-        operation_n(args)
-      when "-d"
-        operation_d(args)
-      when "-w"
-        operation_w(args)
-      when "-g"
-        operation_g(args)
-      else
-        debug "invalid operation"
-        debug "args: #{args}"
+      unless output
+        debug "invalid output"
         exit(EXIT_CODE)
-    end
+      end
 
-    unless output
-      debug "invalid output"
-      exit(EXIT_CODE)
-    end
+      unless output[:error]
+        puts output.to_json         # prints on console
+        STDOUT.flush
+      end
 
-    unless output[:error]
-      puts output.to_json         # prints on console
-      STDOUT.flush
+      client.puts output.to_json    # prints on socket
+      client.close
+    else
+      puts "protocol_error"
     end
-
-    client.puts output.to_json    # prints on socket
-    client.close
   end
 rescue => e
   debug "generic error #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"

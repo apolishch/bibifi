@@ -10,6 +10,7 @@ Signal.trap('TERM') { exit 0 } # Trap `Kill ` == "TERM"
 
 SECRET_KEY = 'HUDFaSDh9130fsaklrm1d>>>Dsax__+d1'
 EXIT_CODE  = 255
+PROTOCOL_EXIT_CODE = 63
 
 def generate_hash(value)
     OpenSSL::HMAC.hexdigest(
