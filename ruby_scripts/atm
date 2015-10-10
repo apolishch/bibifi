@@ -320,7 +320,9 @@ rescue =>e
     # print "protocol_error" to stdout (followed by a newline)
     # and roll back (i.e., undo any changes made by) the current
     # transaction.
-
+    if (operation === "n" && e.class === Timeout::Error)
+      File.delete(card_file)
+    end
     debug "generic socket rescue: #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
     #puts "protocol_error"
     STDOUT.flush
