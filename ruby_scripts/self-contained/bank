@@ -401,6 +401,7 @@ begin
     f << Base64.encode64($secret_key) + "\n"
   end
   STDOUT.puts "created"
+  STDOUT.flush
 rescue Errno::EACCES
   debug "No permission to write file: #{auth_file}"
   exit(EXIT_CODE)
@@ -513,6 +514,7 @@ begin
 
       unless output[:error]
         STDOUT.puts output.to_json  # prints on console
+        STDOUT.flush
       end
 
       client.puts output.to_json    # prints on socket

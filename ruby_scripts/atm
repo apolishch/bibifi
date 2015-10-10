@@ -296,7 +296,6 @@ begin
         result = JSON.parse(raw_result)
       rescue JSON::ParserError
         debug "json parser error"
-        STDOUT.flush
         exit(PROTOCOL_EXIT_CODE)
       end
 
@@ -307,6 +306,7 @@ begin
       end
 
       STDOUT.puts raw_result
+      STDOUT.flush
     }
   end
 rescue =>e 
