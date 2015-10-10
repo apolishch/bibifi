@@ -4,35 +4,53 @@ require 'socket'
 require 'timeout'
 require 'json'
 require 'openssl'
+require 'base64'
 
 Signal.trap('INT')  { exit 0 } # Trap ^C      == "INT"
 Signal.trap('TERM') { exit 0 } # Trap `Kill ` == "TERM"
 
-SECRET_KEY = 'HUDFaSDh9130fsaklrm1d>>>Dsax__+d1'
+DEBUG = false
 EXIT_CODE  = 255
+PROTOCOL_EXIT_CODE = 63
+DEVICE_KEY = OpenSSL::Cipher::AES128.new(:CBC).random_key
 
 def generate_hash(value)
     OpenSSL::HMAC.hexdigest(
         OpenSSL::Digest.new('sha256'),
-        SECRET_KEY,
+        $secret_key,
         value
     ).strip()
 end
 
 def debug(msg)
-  # Comment below to disable all debug messages
-  #puts msg
+  puts msg if DEBUG
+end
+
+def encrypt(plain_text)
+	cipher = OpenSSL::Cipher::AES128.new(:CBC)
+	cipher.encrypt
+	cipher.key = $secret_key
+	cipher.update(plain_text) + cipher.final
+end
+
+def decrypt(cipher_text)
+	cipher = OpenSSL::Cipher::AES128.new(:CBC)
+	cipher.decrypt
+	cipher.key = $secret_key
+	cipher.update(cipher_text) + cipher.final 
+end
+
+def sign(text)
+    OpenSSL::HMAC.hexdigest(
+        OpenSSL::Digest.new('sha256'),
+        DEVICE_KEY,
+        text
+    ).strip()
 end
 
 # All other errors, specified throughout this document or
 # unrecoverable errors not explicitly discussed, should prompt the
 # program to exit with return code 255
-# >>>> it's from RAILS 
-# >>>> http://api.rubyonrails.org/classes/ActiveSupport/Rescuable/ClassMethods.html
-#rescue_from 'SystemCallError' do |e|
-    #debug e.class.name.to_s
-    #exit(EXIT_CODE)
-#end
 
 # Numeric inputs are positive and provided in decimal without any
 # leading 0's (should match /(0|[1-9][0-9]*)/). Thus "42" is a valid
@@ -126,7 +144,24 @@ def is_valid_card_file?(card_file)
   return result
 end
 
-def are_valid_args?(args)
+def is_valid_atm_time?(atm_time)
+  if atm_time.length >= 1 \
+    && atm_time.length <= 255 \
+    && atm_time =~ /\A[a-z0-9_\-\.]+\Z/
+      return true
+  end
+
+  debug "Invalid atm_time: #{atm_time}"
+  false
+end
+
+def are_valid_args?(args, auth_file)
+  # ATM time
+  if !args[:atm_time] || !is_valid_atm_time?(args[:atm_time])
+    debug "are_valid_args? invalid atm time"
+    return false
+  end
+
   # Account Name
   if !args[:account] || !is_valid_account?(args[:account])
     debug "are_valid_args? invalid account"
@@ -139,8 +174,20 @@ def are_valid_args?(args)
     return false
   end
 
-  # Card File
-  if !args[:auth_file] || !is_valid_card_file?(args[:auth_file])
+  begin
+    card_content = File.open(args[:card_file]).read
+  rescue
+    debug "could not access card file"
+    return false
+  end
+
+  if card_content != generate_hash(args[:account])
+    debug "invalid card"
+    return false
+  end
+
+  # Auth File
+  if !args[:auth_file] || !is_valid_auth_file?(args[:auth_file]) || args[:auth_file]!=auth_file
     debug "are_valid_args? invalid auth file"
     return false
   end
@@ -167,22 +214,12 @@ def are_valid_args?(args)
 end
 
 def operation_n(args)
-    all = File.open(args[:auth_file], "r").read
-    found_account = false
-    all.split("\n").each do |entry|
-        values = entry.split(";")
-        if values[0] == args[:account]
-            found_account = true
-        end
-    end
-
-    if found_account
+    unless balance(args[:auth_file], args[:account]).nil?
         return { :error => "Account already exists"}
     end
 
-    File.open(args[:auth_file], "a") do |f|
-        f << "#{args[:account]};n;;#{Time.now}\n"
-        f << "#{args[:account]};d;#{args[:operation_value]};#{Time.now}\n"
+    unless add_entry(args[:auth_file], args[:account], "n", args[:operation_value], args[:atm_time])
+        return { :error => "Replay attack detected"}
     end
 
     {
@@ -192,21 +229,12 @@ def operation_n(args)
 end
 
 def operation_d(args)
-    all = File.open(args[:auth_file], "r").read
-    found_account = false
-    all.split("\n").each do |entry|
-        values = entry.split(";")
-        if values[0] == args[:account]
-            found_account = true
-        end
-    end
-
-    unless found_account
+    if balance(args[:auth_file], args[:account]).nil?
         return { :error => "Account not found"}
     end
 
-    File.open(args[:auth_file], "a") do |f|
-        f << "#{args[:account]};d;#{args[:operation_value]};#{Time.now}\n"
+    unless add_entry(args[:auth_file], args[:account], "d", args[:operation_value], args[:atm_time])
+        return { :error => "Replay attack detected"}
     end
 
     {
@@ -216,34 +244,15 @@ def operation_d(args)
 end
 
 def operation_w(args)
-    all = File.open(args[:auth_file], "r").read
-    balance = 0.0
-    found_account = false
-    all.split("\n").each do |entry|
-        values = entry.split(";")
-        if values[0] == args[:account]
-            found_account = true
+    b = balance(args[:auth_file], args[:account])
+    return { :error => "Account not found"} if b.nil?
 
-            if values[1] == "d"
-                balance += values[2].to_f
-            end
-
-            if values[1] == "w"
-                balance -= values[2].to_f
-            end
-        end
-    end
-
-    unless found_account
-        return { :error => "Account not found"}
-    end
-
-    if balance.round(2) - args[:operation_value].to_f < 0
+    if b - args[:operation_value].to_f < 0
         return { :error => "Invalid amount"}
     end
 
-    File.open(args[:auth_file], "a") do |f|
-        f << "#{args[:account]};w;#{args[:operation_value]};#{Time.now}\n"
+    unless add_entry(args[:auth_file], args[:account], "w", args[:operation_value], args[:atm_time])
+        return { :error => "Replay attack detected"}
     end
 
     {
@@ -253,39 +262,82 @@ def operation_w(args)
 end
 
 def operation_g(args)
-    all = File.open(args[:auth_file], "r").read
-    balance = 0.0
-    found_account = false
-    all.split("\n").each do |entry|
-        values = entry.split(";")
-        if values[0] == args[:account]
-            found_account = true
-            if values[1] == "d"
-                balance += values[2].to_f
-            end
+    b = balance(args[:auth_file], args[:account])
+    return { :error => "Account not found"} if b.nil?
 
-            if values[1] == "w"
-                balance -= values[2].to_f
-            end
-        end
-    end
-
-    unless found_account
-        return { :error => "Account not found"}
-    end
-
-    File.open(args[:auth_file], "a") do |f|
-        f << "#{args[:account]};g;;#{Time.now}\n"
+    unless add_entry(args[:auth_file], args[:account], "g", nil, args[:atm_time])
+        return { :error => "Replay attack detected"}
     end
 
     {
         :account => args[:account].to_s,
-        :balance => balance.to_f.round(2)
+        :balance => b
     }
 end
 
 
-# bank is a server than simulates a bank, whose job is to keep track
+def add_entry(auth_file, user, operation, value, atm_time)
+    current_time = Time.now
+    to_sign = "#{user}#{operation}#{value}#{atm_time}#{current_time}"
+    signature = sign(to_sign)
+
+    # Security Check
+    # Verify duplicate (replay attack attempts)
+    replay_attack_attempt = false
+    entries = File.open(auth_file, "r").read
+    entries.split("\n").each do |e|
+        values = e.split(";")
+        next unless validate_entry(values)
+
+        if values[0..3] == [user, operation, value, atm_time]
+            replay_attack_attempt = true
+            break
+        end
+    end
+
+    if replay_attack_attempt
+        return false
+    end
+
+    # Add entry
+    File.open(auth_file, "a") do |f|
+        f << [user, operation, value, atm_time, current_time, signature].join(";") + "\n"
+    end
+
+    return true
+end
+
+def balance(auth_file, user)
+    # return nil if user does not exist
+    all = File.open(auth_file, "r").read
+    total = 0.0
+    account_exists = false
+    all.split("\n").each do |e|
+        values = e.split(";")
+        next unless validate_entry(values)
+
+        if values[0] == user
+            account_exists = true
+            if ["n","d"].include?(values[1])
+                total += values[2].to_f
+            end
+
+            if ["w"].include?(values[1])
+                total -= values[2].to_f
+            end
+        end
+    end
+
+    return nil unless account_exists
+    return total.round(2)
+end
+
+def validate_entry(values)
+    return false if values.count != 6
+    to_sign = values[0..4].join("")
+    
+    return sign(to_sign) == values.last
+end# bank is a server than simulates a bank, whose job is to keep track
 # of the balance of its customers. It will receive communications
 # from atm clients on the specified TCP port. Example interactions
 # with bank and the atm are given at the bottom of the main page.
@@ -312,7 +364,7 @@ end
 
 begin
   optparse.parse!
-rescue OptionParser::MissingArgument, OptionParser::InvalidOption
+rescue
   debug "invalid arguments #{options.inspect}"
   exit(EXIT_CODE)
 end
@@ -341,11 +393,14 @@ end
 # bank prints "created" (followed by a newline)
 # to stdout. bank will not change the auth file
 # once "created" has been printed.
+$secret_key = OpenSSL::Cipher::AES256.new(:CBC).random_key
+debug Base64.encode64($secret_key)
+
 begin
-  f = File.new(auth_file,  "w")
-  f.close
-  puts "created"
-  STDOUT.flush
+  File.open(auth_file,  "w") do |f|
+    f << Base64.encode64($secret_key) + "\n"
+  end
+  STDOUT.puts "created"
 rescue Errno::EACCES
   debug "No permission to write file: #{auth_file}"
   exit(EXIT_CODE)
@@ -360,102 +415,112 @@ end
 # and roll back (i.e., undo any changes made by) the current
 # transaction.
 server = TCPServer.new("127.0.0.1", port)
+message_counter = 0
 begin
   loop do
-    client = server.accept    # Wait for a client to connect
+    ios = IO.select([server], nil, nil, 10)
+    if (ios)
+      client = server.accept      # Wait for a client to connect
+      client_input = client.gets  # Wait for a client input
+      debug "received #{client_input}"
 
-    # A timeout occurs if the other program does not respond
-    # within 10 seconds. If the atm observes the timeout, it
-    # should exit with return code 63, while if the bank observes it,
-    # it should print "protocol_error" to stdout (followed by a newline)
-    # and rollback the current transaction. The non-observing party
-    # need not do anything in particular.
-#    timeout(100) do
-#      debug "timeout"
-#      client.puts "protocol_error"
-#    end
-
-    client_input = client.gets
-    debug "received #{client_input}"
-
-    begin
-       client_input = JSON.parse(client_input)
-    rescue JSON::ParserError
-      debug "failed to parse json"
-      client.puts "protocol_error"
-    end
-
-    # Verify Input
-    if !client_input["input"] || !client_input["input"].is_a?(Array)
-        debug "invalid input"
+      # Decrypt
+      begin
+        client_input = decrypt(Base64.decode64(client_input))
+      rescue OpenSSL::Cipher::CipherError => e
+        debug "failed to decrypt: #{e.inspect}"
         client.puts "protocol_error"
         client.close
-    end
-
-    # Extract arguments from client input
-    args = {}
-    client_input["input"].each_with_index do |v, index|
-      key = nil
-
-      case v
-        when "-a"
-          key = "account"
-        when "-c"
-          key = "card_file"
-        when "-s"
-          key = "auth_file"
-        when "-n", "-d", "-w", "-g"
-          args[:operation] = v
-          key = "operation_value" unless v=="-g"  # -g doesn't have a value
+        next
       end
 
-      # Index check -- just to make sure that there is
-      # a next value followed by the key. E.g.,
-      # When the key is "-n" we supposed that there is
-      # the next value, which will be amount for instance.
-      # So we check if the index exists (index+1) as some
-      # keys doesn't need indexes, such as "-g".
-      if key && (index + 1 <= client_input["input"].count)
-        args[:"#{key}"] = client_input["input"][index + 1]
+      # Parse
+      begin
+        client_input = JSON.parse(client_input)
+      rescue JSON::ParserError
+        debug "failed to parse json"
+        client.puts "protocol_error"
+        client.close
+        next
       end
-    end
 
-    # Verify Input
-    if !are_valid_args?(args)
-      debug "invalid args"
-      client.puts "protocol_error"
+      # Verify Input
+      if !client_input["input"] || !client_input["input"].is_a?(Array)
+          debug "invalid input"
+          client.puts "protocol_error"
+          client.close
+          next
+      end
+
+      # Extract arguments from client input
+      args = {}
+      client_input["input"].each_with_index do |v, index|
+        key = nil
+
+        case v
+          when "atm_time"
+            key = "atm_time"
+          when "-a"
+            key = "account"
+          when "-c"
+            key = "card_file"
+          when "-s"
+            key = "auth_file"
+          when "-n", "-d", "-w", "-g"
+            args[:operation] = v
+            key = "operation_value" unless v=="-g"  # -g doesn't have a value
+        end
+
+        # Index check -- just to make sure that there is
+        # a next value followed by the key. E.g.,
+        # When the key is "-n" we supposed that there is
+        # the next value, which will be amount for instance.
+        # So we check if the index exists (index+1) as some
+        # keys doesn't need indexes, such as "-g".
+        if key && (index + 1 <= client_input["input"].count)
+          args[:"#{key}"] = client_input["input"][index + 1]
+        end
+      end
+
+      # Verify Input
+      if !are_valid_args?(args, auth_file)
+        debug "invalid args"
+        client.puts "protocol_error"
+        client.close
+        next
+      end
+
+      # Execute Operations
+      output = case args[:operation]
+        when "-n"
+          operation_n(args)
+        when "-d"
+          operation_d(args)
+        when "-w"
+          operation_w(args)
+        when "-g"
+          operation_g(args)
+        else
+          debug "invalid operation"
+          debug "args: #{args}"
+          exit(EXIT_CODE)
+      end
+
+      unless output
+        debug "invalid output"
+        exit(EXIT_CODE)
+      end
+
+      unless output[:error]
+        STDOUT.puts output.to_json  # prints on console
+      end
+
+      client.puts output.to_json    # prints on socket
       client.close
       next
+    else
+      debug "no connections came in 10 seconds; awaiting ..."
     end
-
-    # Execute Operations
-    output = case args[:operation]
-      when "-n"
-        operation_n(args)
-      when "-d"
-        operation_d(args)
-      when "-w"
-        operation_w(args)
-      when "-g"
-        operation_g(args)
-      else
-        debug "invalid operation"
-        debug "args: #{args}"
-        exit(EXIT_CODE)
-    end
-
-    unless output
-      debug "invalid output"
-      exit(EXIT_CODE)
-    end
-
-    unless output[:error]
-      puts output.to_json         # prints on console
-      STDOUT.flush
-    end
-
-    client.puts output.to_json    # prints on socket
-    client.close
   end
 rescue => e
   debug "generic error #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"

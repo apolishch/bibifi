@@ -4,34 +4,51 @@ require 'socket'
 require 'timeout'
 require 'json'
 require 'openssl'
+require 'base64'
 
 Signal.trap('INT')  { exit 0 } # Trap ^C      == "INT"
 Signal.trap('TERM') { exit 0 } # Trap `Kill ` == "TERM"
 
-SECRET_KEY = 'HUDFaSDh9130fsaklrm1d>>>Dsax__+d1'
+DEBUG = false
 EXIT_CODE  = 255
 PROTOCOL_EXIT_CODE = 63
+DEVICE_KEY = OpenSSL::Cipher::AES128.new(:CBC).random_key
 
 def generate_hash(value)
     OpenSSL::HMAC.hexdigest(
         OpenSSL::Digest.new('sha256'),
-        SECRET_KEY,
+        $secret_key,
         value
     ).strip()
 end
 
 def debug(msg)
-  # Comment below to disable all debug messages
-  #puts msg
+  puts msg if DEBUG
+end
+
+def encrypt(plain_text)
+	cipher = OpenSSL::Cipher::AES128.new(:CBC)
+	cipher.encrypt
+	cipher.key = $secret_key
+	cipher.update(plain_text) + cipher.final
+end
+
+def decrypt(cipher_text)
+	cipher = OpenSSL::Cipher::AES128.new(:CBC)
+	cipher.decrypt
+	cipher.key = $secret_key
+	cipher.update(cipher_text) + cipher.final 
+end
+
+def sign(text)
+    OpenSSL::HMAC.hexdigest(
+        OpenSSL::Digest.new('sha256'),
+        DEVICE_KEY,
+        text
+    ).strip()
 end
 
 # All other errors, specified throughout this document or
 # unrecoverable errors not explicitly discussed, should prompt the
 # program to exit with return code 255
-# >>>> it's from RAILS 
-# >>>> http://api.rubyonrails.org/classes/ActiveSupport/Rescuable/ClassMethods.html
-#rescue_from 'SystemCallError' do |e|
-    #debug e.class.name.to_s
-    #exit(EXIT_CODE)
-#end
 

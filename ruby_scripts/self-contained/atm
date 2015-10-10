@@ -4,35 +4,53 @@ require 'socket'
 require 'timeout'
 require 'json'
 require 'openssl'
+require 'base64'
 
 Signal.trap('INT')  { exit 0 } # Trap ^C      == "INT"
 Signal.trap('TERM') { exit 0 } # Trap `Kill ` == "TERM"
 
-SECRET_KEY = 'HUDFaSDh9130fsaklrm1d>>>Dsax__+d1'
+DEBUG = false
 EXIT_CODE  = 255
+PROTOCOL_EXIT_CODE = 63
+DEVICE_KEY = OpenSSL::Cipher::AES128.new(:CBC).random_key
 
 def generate_hash(value)
     OpenSSL::HMAC.hexdigest(
         OpenSSL::Digest.new('sha256'),
-        SECRET_KEY,
+        $secret_key,
         value
     ).strip()
 end
 
 def debug(msg)
-  # Comment below to disable all debug messages
-  #puts msg
+  puts msg if DEBUG
+end
+
+def encrypt(plain_text)
+	cipher = OpenSSL::Cipher::AES128.new(:CBC)
+	cipher.encrypt
+	cipher.key = $secret_key
+	cipher.update(plain_text) + cipher.final
+end
+
+def decrypt(cipher_text)
+	cipher = OpenSSL::Cipher::AES128.new(:CBC)
+	cipher.decrypt
+	cipher.key = $secret_key
+	cipher.update(cipher_text) + cipher.final 
+end
+
+def sign(text)
+    OpenSSL::HMAC.hexdigest(
+        OpenSSL::Digest.new('sha256'),
+        DEVICE_KEY,
+        text
+    ).strip()
 end
 
 # All other errors, specified throughout this document or
 # unrecoverable errors not explicitly discussed, should prompt the
 # program to exit with return code 255
-# >>>> it's from RAILS 
-# >>>> http://api.rubyonrails.org/classes/ActiveSupport/Rescuable/ClassMethods.html
-#rescue_from 'SystemCallError' do |e|
-    #debug e.class.name.to_s
-    #exit(EXIT_CODE)
-#end
 
 # Numeric inputs are positive and provided in decimal without any
 # leading 0's (should match /(0|[1-9][0-9]*)/). Thus "42" is a valid
@@ -126,7 +144,24 @@ def is_valid_card_file?(card_file)
   return result
 end
 
-def are_valid_args?(args)
+def is_valid_atm_time?(atm_time)
+  if atm_time.length >= 1 \
+    && atm_time.length <= 255 \
+    && atm_time =~ /\A[a-z0-9_\-\.]+\Z/
+      return true
+  end
+
+  debug "Invalid atm_time: #{atm_time}"
+  false
+end
+
+def are_valid_args?(args, auth_file)
+  # ATM time
+  if !args[:atm_time] || !is_valid_atm_time?(args[:atm_time])
+    debug "are_valid_args? invalid atm time"
+    return false
+  end
+
   # Account Name
   if !args[:account] || !is_valid_account?(args[:account])
     debug "are_valid_args? invalid account"
@@ -139,8 +174,20 @@ def are_valid_args?(args)
     return false
   end
 
-  # Card File
-  if !args[:auth_file] || !is_valid_card_file?(args[:auth_file])
+  begin
+    card_content = File.open(args[:card_file]).read
+  rescue
+    debug "could not access card file"
+    return false
+  end
+
+  if card_content != generate_hash(args[:account])
+    debug "invalid card"
+    return false
+  end
+
+  # Auth File
+  if !args[:auth_file] || !is_valid_auth_file?(args[:auth_file]) || args[:auth_file]!=auth_file
     debug "are_valid_args? invalid auth file"
     return false
   end
@@ -166,7 +213,6 @@ def are_valid_args?(args)
   return true
 end
 
-
 #
 # atm is a client program that simulates an ATM by providing
 # a mechanism for customers to interact with their bank accounts
@@ -190,7 +236,7 @@ end
 # duplicated parameters. Note that parameters may be specified in any order.
 
 options = {}
-optparse = OptionParser.new do |opts|  
+optparse = OptionParser.new do |opts|
   opts.banner = "Usage: atm -a <account> [-s <auth-file>] [-i <ip-address>] [-p <port>] [-c <card-file>]"
   opts.separator  ""
   opts.separator  "Options"
@@ -315,7 +361,7 @@ end
 
 begin
   optparse.parse!
-rescue OptionParser::MissingArgument, OptionParser::InvalidOption
+rescue
   debug "invalid arguments #{options.inspect}"
   exit(EXIT_CODE)
 end
@@ -338,6 +384,7 @@ port            = (options[:port]     || "3000").to_i
 auth_file       = options[:auth_file] || "bank.auth"
 card_file       = options[:card_file] || "#{options[:account]}.card"
 
+
 # Mandatory parameters verification
 ["account", "operation"].each do |var|
     eval(
@@ -358,7 +405,8 @@ unless File.exist?(auth_file)
 end
 
 begin
-  f = File.open(auth_file,  "r")
+  $secret_key = Base64.decode64(File.open(auth_file, "r").read.split("\n").first)
+  debug Base64.encode64($secret_key)
 rescue Errno::EACCES
   debug "No permission to open file: #{auth_file}"
   exit(EXIT_CODE)
@@ -423,14 +471,11 @@ end
 # 
 
 begin
+  Timeout::timeout(10) do
     Socket.tcp(ip, port) {|sock|
       # A timeout occurs if the other program does not respond
       # within 10 seconds. If the atm observes the timeout, it
       # should exit with return code 63
-      #timeout(100) do
-      #  debug "timeout"
-      #  exit(63)
-      #end
 
       input = [
             "-p",
@@ -449,12 +494,16 @@ begin
       # We only add the operation_value if not empty
       input << operation_value if operation_value
 
+      # Time to prevent replay attacks
+      input << "atm_time"
+      input << generate_hash(Time.now.to_s)
+
       message = {
         input: input,
         base64: false
       }.to_json
 
-      sock.print message
+      sock.print Base64.strict_encode64(encrypt(message))
       sock.close_write
       raw_result = sock.read
 
@@ -462,9 +511,8 @@ begin
         result = JSON.parse(raw_result)
       rescue JSON::ParserError
         debug "json parser error"
-        puts "protocol_error"
         STDOUT.flush
-        exit(63)
+        exit(PROTOCOL_EXIT_CODE)
       end
 
       # Exit when bank announce an error / violation
@@ -473,9 +521,9 @@ begin
         exit(EXIT_CODE)
       end
 
-      puts raw_result
-      STDOUT.flush
+      STDOUT.puts raw_result
     }
+  end
 rescue =>e 
     # If an error is detected in the protocol's communication,
     # atm should exit with return code 63, while bank should
@@ -484,7 +532,5 @@ rescue =>e
     # transaction.
 
     debug "generic socket rescue: #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
-    puts "protocol_error"
-    STDOUT.flush
-    exit(63)
+    exit(PROTOCOL_EXIT_CODE)
 end

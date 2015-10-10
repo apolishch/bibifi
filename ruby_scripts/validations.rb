@@ -90,7 +90,24 @@ def is_valid_card_file?(card_file)
   return result
 end
 
-def are_valid_args?(args)
+def is_valid_atm_time?(atm_time)
+  if atm_time.length >= 1 \
+    && atm_time.length <= 255 \
+    && atm_time =~ /\A[a-z0-9_\-\.]+\Z/
+      return true
+  end
+
+  debug "Invalid atm_time: #{atm_time}"
+  false
+end
+
+def are_valid_args?(args, auth_file)
+  # ATM time
+  if !args[:atm_time] || !is_valid_atm_time?(args[:atm_time])
+    debug "are_valid_args? invalid atm time"
+    return false
+  end
+
   # Account Name
   if !args[:account] || !is_valid_account?(args[:account])
     debug "are_valid_args? invalid account"
@@ -103,8 +120,20 @@ def are_valid_args?(args)
     return false
   end
 
-  # Card File
-  if !args[:auth_file] || !is_valid_card_file?(args[:auth_file])
+  begin
+    card_content = File.open(args[:card_file]).read
+  rescue
+    debug "could not access card file"
+    return false
+  end
+
+  if card_content != generate_hash(args[:account])
+    debug "invalid card"
+    return false
+  end
+
+  # Auth File
+  if !args[:auth_file] || !is_valid_auth_file?(args[:auth_file]) || args[:auth_file]!=auth_file
     debug "are_valid_args? invalid auth file"
     return false
   end

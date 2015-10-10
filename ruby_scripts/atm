@@ -1,8 +1,3 @@
-#!/usr/bin/env ruby
-#require_relative 'common.rb'
-#require_relative 'validations.rb'
-require '/Users/abraham/github/bibifi/ruby_scripts/common.rb'
-require '/Users/abraham/github/bibifi/ruby_scripts/validations.rb'
 #
 # atm is a client program that simulates an ATM by providing
 # a mechanism for customers to interact with their bank accounts
@@ -151,7 +146,7 @@ end
 
 begin
   optparse.parse!
-rescue OptionParser::MissingArgument, OptionParser::InvalidOption
+rescue
   debug "invalid arguments #{options.inspect}"
   exit(EXIT_CODE)
 end
@@ -195,7 +190,8 @@ unless File.exist?(auth_file)
 end
 
 begin
-  f = File.open(auth_file,  "r")
+  $secret_key = Base64.decode64(File.open(auth_file, "r").read.split("\n").first)
+  debug Base64.encode64($secret_key)
 rescue Errno::EACCES
   debug "No permission to open file: #{auth_file}"
   exit(EXIT_CODE)
@@ -265,10 +261,6 @@ begin
       # A timeout occurs if the other program does not respond
       # within 10 seconds. If the atm observes the timeout, it
       # should exit with return code 63
-      #timeout(1000) do
-      #  debug "timeout"
-      #  exit(PROTOCOL_EXIT_CODE)
-      #end
 
       input = [
             "-p",
@@ -287,12 +279,16 @@ begin
       # We only add the operation_value if not empty
       input << operation_value if operation_value
 
+      # Time to prevent replay attacks
+      input << "atm_time"
+      input << generate_hash(Time.now.to_s)
+
       message = {
         input: input,
         base64: false
       }.to_json
 
-      sock.print message
+      sock.print Base64.strict_encode64(encrypt(message))
       sock.close_write
       raw_result = sock.read
 
@@ -310,8 +306,7 @@ begin
         exit(EXIT_CODE)
       end
 
-      puts raw_result
-      STDOUT.flush
+      STDOUT.puts raw_result
     }
   end
 rescue =>e 
@@ -322,7 +317,5 @@ rescue =>e
     # transaction.
 
     debug "generic socket rescue: #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
-    #puts "protocol_error"
-    STDOUT.flush
     exit(PROTOCOL_EXIT_CODE)
 end
