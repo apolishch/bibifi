@@ -120,18 +120,6 @@ def are_valid_args?(args, auth_file)
     return false
   end
 
-  begin
-    card_content = File.open(args[:card_file]).read
-  rescue
-    debug "could not access card file"
-    return false
-  end
-
-  if card_content != generate_hash(args[:account])
-    debug "invalid card"
-    return false
-  end
-
   # Auth File
   if !args[:auth_file] || !is_valid_auth_file?(args[:auth_file]) || args[:auth_file]!=auth_file
     debug "are_valid_args? invalid auth file"
