@@ -81,96 +81,100 @@ end
 # print "protocol_error" to stdout (followed by a newline)
 # and roll back (i.e., undo any changes made by) the current
 # transaction.
+time = nil
 server = TCPServer.new("127.0.0.1", port)
 begin
   loop do
-    ios = IO.select([server], nil, nil, 10)
-    if (ios)
-      client = server.accept    # Wait for a client to connect
+    begin
+      Timeout::timeout(10) do
+        client = server.accept    # Wait for a client to connect
+        client_input = client.gets
+        debug "received #{client_input}"
+        begin
+          client_input = JSON.parse(client_input)
+        rescue JSON::ParserError
+          debug "failed to parse json"
+          puts "protocol_error"
+        end
 
-      client_input = client.gets
-      debug "received #{client_input}"
-      begin
-        client_input = JSON.parse(client_input)
-      rescue JSON::ParserError
-        debug "failed to parse json"
-        puts "protocol_error"
-      end
+        # Verify Input
+        if !client_input["input"] || !client_input["input"].is_a?(Array)
+            debug "invalid input"
+            puts "protocol_error"
+            client.close
+        end
 
-      # Verify Input
-      #puts client_input["input"].is_a?(Array)
-      if !client_input["input"] || !client_input["input"].is_a?(Array)
-          debug "invalid input"
+        # Extract arguments from client input
+        args = {}
+        client_input["input"].each_with_index do |v, index|
+          key = nil
+
+          case v
+            when "-a"
+              key = "account"
+            when "-c"
+              key = "card_file"
+            when "-s"
+              key = "auth_file"
+            when "-n", "-d", "-w", "-g"
+              args[:operation] = v
+              key = "operation_value" unless v=="-g"  # -g doesn't have a value
+          end
+
+          # Index check -- just to make sure that there is
+          # a next value followed by the key. E.g.,
+          # When the key is "-n" we supposed that there is
+          # the next value, which will be amount for instance.
+          # So we check if the index exists (index+1) as some
+          # keys doesn't need indexes, such as "-g".
+          if key && (index + 1 <= client_input["input"].count)
+            args[:"#{key}"] = client_input["input"][index + 1]
+          end
+        end
+
+        # Verify Input
+        if !are_valid_args?(args)
+          debug "invalid args"
           puts "protocol_error"
           client.close
-      end
-
-      # Extract arguments from client input
-      args = {}
-      client_input["input"].each_with_index do |v, index|
-        key = nil
-
-        case v
-          when "-a"
-            key = "account"
-          when "-c"
-            key = "card_file"
-          when "-s"
-            key = "auth_file"
-          when "-n", "-d", "-w", "-g"
-            args[:operation] = v
-            key = "operation_value" unless v=="-g"  # -g doesn't have a value
+          next
         end
 
-        # Index check -- just to make sure that there is
-        # a next value followed by the key. E.g.,
-        # When the key is "-n" we supposed that there is
-        # the next value, which will be amount for instance.
-        # So we check if the index exists (index+1) as some
-        # keys doesn't need indexes, such as "-g".
-        if key && (index + 1 <= client_input["input"].count)
-          args[:"#{key}"] = client_input["input"][index + 1]
+        # Execute Operations
+        output = case args[:operation]
+          when "-n"
+            operation_n(args)
+          when "-d"
+            operation_d(args)
+          when "-w"
+            operation_w(args)
+          when "-g"
+            operation_g(args)
+          else
+            debug "invalid operation"
+            debug "args: #{args}"
+            exit(EXIT_CODE)
         end
-      end
 
-      # Verify Input
-      if !are_valid_args?(args)
-        debug "invalid args"
-        puts "protocol_error"
-        client.close
-        next
-      end
-
-      # Execute Operations
-      output = case args[:operation]
-        when "-n"
-          operation_n(args)
-        when "-d"
-          operation_d(args)
-        when "-w"
-          operation_w(args)
-        when "-g"
-          operation_g(args)
-        else
-          debug "invalid operation"
-          debug "args: #{args}"
+        unless output
+          debug "invalid output"
           exit(EXIT_CODE)
-      end
+        end
 
-      unless output
-        debug "invalid output"
-        exit(EXIT_CODE)
-      end
+        unless output[:error]
+          puts output.to_json         # prints on console
+          STDOUT.flush
+        end
 
-      unless output[:error]
-        puts output.to_json         # prints on console
-        STDOUT.flush
+        client.puts output.to_json    # prints on socket
+        client.close
       end
-
-      client.puts output.to_json    # prints on socket
-      client.close
-    else
-      puts "protocol_error"
+    rescue => e
+      if (e.class == Timeout::Error)
+        puts "protocol_error"
+      else
+        raise e
+      end
     end
   end
 rescue => e
