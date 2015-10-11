@@ -23,21 +23,35 @@ def generate_hash(value)
 end
 
 def debug(msg)
-  puts msg if DEBUG
+  return false unless DEBUG
+  flag = "a"
+  flag = "w" unless File.exist?("debug.txt")
+
+  File.open("debug.txt", flag) do |f|
+    f << msg
+  end
 end
 
 def encrypt(plain_text)
-	cipher = OpenSSL::Cipher::AES128.new(:CBC)
-	cipher.encrypt
-	cipher.key = $secret_key
-	cipher.update(plain_text) + cipher.final
+    cipher = OpenSSL::Cipher.new('aes-128-gcm')
+    cipher.encrypt
+    cipher.key = $secret_key
+    iv = cipher.random_iv
+    cipher.iv = iv
+    ciphertext = cipher.update(plain_text) + cipher.final
+
+    [ciphertext, iv, cipher.auth_tag].map{
+        |x| Base64.strict_encode64(x) }.join(":")
 end
 
-def decrypt(cipher_text)
-	cipher = OpenSSL::Cipher::AES128.new(:CBC)
-	cipher.decrypt
-	cipher.key = $secret_key
-	cipher.update(cipher_text) + cipher.final 
+def decrypt(text)
+    ciphertext, iv, auth_tag = text.split(":").map{ |x| Base64.decode64(x) }
+    cipher = OpenSSL::Cipher.new('aes-128-gcm')
+    cipher.decrypt
+    cipher.key = $secret_key
+    cipher.iv = iv
+    cipher.auth_tag = auth_tag
+    cipher.update(ciphertext) + cipher.final 
 end
 
 def sign(text)
@@ -217,9 +231,8 @@ def operation_n(args)
 end
 
 def operation_d(args)
-    if balance(args[:auth_file], args[:account]).nil?
-        return { :error => "Account not found"}
-    end
+    b = balance(args[:auth_file], args[:account])
+    return { :error => "Account not found"} if b.nil?
 
     unless add_entry(args[:auth_file], args[:account], "d", args[:operation_value], args[:atm_time])
         return { :error => "Replay attack detected"}
@@ -407,109 +420,119 @@ server = TCPServer.new("127.0.0.1", port)
 message_counter = 0
 begin
   loop do
-    ios = IO.select([server], nil, nil, 10)
-    if (ios)
-      client = server.accept      # Wait for a client to connect
-      client_input = client.gets  # Wait for a client input
-      debug "received #{client_input}"
-
-      # Decrypt
+    begin
       begin
-        client_input = decrypt(Base64.decode64(client_input))
-      rescue OpenSSL::Cipher::CipherError => e
-        debug "failed to decrypt: #{e.inspect}"
-        client.puts "protocol_error"
-        client.close
-        next
+         client, client_sockaddr = server.accept_nonblock   # Wait for a client to connect
+      rescue Errno::EAGAIN, Errno::ECONNABORTED, Errno::EINTR, Errno::EWOULDBLOCK
+        IO.select([server])
+        retry
       end
+      
+      Timeout::timeout(10) do
+        client_input = client.gets  # Wait for a client input
+        debug "received #{client_input}"
 
-      # Parse
-      begin
-        client_input = JSON.parse(client_input)
-      rescue JSON::ParserError
-        debug "failed to parse json"
-        client.puts "protocol_error"
-        client.close
-        next
-      end
-
-      # Verify Input
-      if !client_input["input"] || !client_input["input"].is_a?(Array)
-          debug "invalid input"
-          client.puts "protocol_error"
+        # Decrypt
+        begin
+          client_input = decrypt(client_input)
+        rescue => e
+          debug "failed to decrypt: #{e.inspect}"
+          client.puts encrypt({ :error => "failed to decrypt" }.to_json)
           client.close
           next
-      end
-
-      # Extract arguments from client input
-      args = {}
-      client_input["input"].each_with_index do |v, index|
-        key = nil
-
-        case v
-          when "atm_time"
-            key = "atm_time"
-          when "-a"
-            key = "account"
-          when "-c"
-            key = "card_file"
-          when "-s"
-            key = "auth_file"
-          when "-n", "-d", "-w", "-g"
-            args[:operation] = v
-            key = "operation_value" unless v=="-g"  # -g doesn't have a value
         end
 
-        # Index check -- just to make sure that there is
-        # a next value followed by the key. E.g.,
-        # When the key is "-n" we supposed that there is
-        # the next value, which will be amount for instance.
-        # So we check if the index exists (index+1) as some
-        # keys doesn't need indexes, such as "-g".
-        if key && (index + 1 <= client_input["input"].count)
-          args[:"#{key}"] = client_input["input"][index + 1]
+        # Parse
+        begin
+          client_input = JSON.parse(client_input)
+        rescue JSON::ParserError
+          debug "failed to parse json"
+          client.puts encrypt({ :error => "failed to parse" }.to_json)
+          client.close
+          next
         end
-      end
 
-      # Verify Input
-      if !are_valid_args?(args, auth_file)
-        debug "invalid args"
-        client.puts "protocol_error"
+        # Verify Input
+        if !client_input["input"] || !client_input["input"].is_a?(Array)
+            debug "invalid input"
+            client.puts encrypt({ :error => "invalid input" }.to_json)
+            client.close
+            next
+        end
+
+        # Extract arguments from client input
+        args = {}
+        client_input["input"].each_with_index do |v, index|
+          key = nil
+
+          case v
+            when "atm_time"
+              key = "atm_time"
+            when "-a"
+              key = "account"
+            when "-c"
+              key = "card_file"
+            when "-s"
+              key = "auth_file"
+            when "-n", "-d", "-w", "-g"
+              args[:operation] = v
+              key = "operation_value" unless v=="-g"  # -g doesn't have a value
+          end
+
+          # Index check -- just to make sure that there is
+          # a next value followed by the key. E.g.,
+          # When the key is "-n" we supposed that there is
+          # the next value, which will be amount for instance.
+          # So we check if the index exists (index+1) as some
+          # keys doesn't need indexes, such as "-g".
+          if key && (index + 1 <= client_input["input"].count)
+            args[:"#{key}"] = client_input["input"][index + 1]
+          end
+        end
+
+        # Verify Input
+        if !are_valid_args?(args, auth_file)
+          debug "invalid args"
+          client.puts encrypt({ :error => "invalid arguments" }.to_json)
+          client.close
+          next
+        end
+
+        # Execute Operations
+        output = case args[:operation]
+          when "-n"
+            operation_n(args)
+          when "-d"
+            operation_d(args)
+          when "-w"
+            operation_w(args)
+          when "-g"
+            operation_g(args)
+          else
+            debug "invalid operation"
+            debug "args: #{args}"
+            client.puts encrypt({ :error => "invalid operation" }.to_json)
+            client.close
+            next
+        end
+
+        unless output[:error]
+          STDOUT.puts output.to_json           # prints on console
+          STDOUT.flush
+        end
+
+        client.puts encrypt(output.to_json)    # prints on socket
         client.close
         next
       end
 
-      # Execute Operations
-      output = case args[:operation]
-        when "-n"
-          operation_n(args)
-        when "-d"
-          operation_d(args)
-        when "-w"
-          operation_w(args)
-        when "-g"
-          operation_g(args)
-        else
-          debug "invalid operation"
-          debug "args: #{args}"
-          exit(EXIT_CODE)
+    rescue => e
+      if (e.class == Timeout::Error)
+         puts "protocol_error"
+         STDOUT.flush
+      else
+        raise e
       end
-
-      unless output
-        debug "invalid output"
-        exit(EXIT_CODE)
-      end
-
-      unless output[:error]
-        STDOUT.puts output.to_json  # prints on console
-        STDOUT.flush
-      end
-
-      client.puts output.to_json    # prints on socket
-      client.close
-      next
-    else
-      debug "no connections came in 10 seconds; awaiting ..."
     end
   end
 rescue => e
