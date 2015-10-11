@@ -131,7 +131,7 @@ def is_valid_port?(port)
   # p==0 means invalid integer
   # p<1024 and p>65535 are invalid
   p = port.to_i
-  if p!=0 && p >= 1024 && p <= 65535
+  if port[0]!="0" && p!=0 && p >= 1024 && p <= 65535
     return true
   end
   
