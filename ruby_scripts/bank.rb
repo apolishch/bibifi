@@ -97,7 +97,7 @@ begin
           client_input = decrypt(client_input)
         rescue OpenSSL::Cipher::CipherError => e
           debug "failed to decrypt: #{e.inspect}"
-          client.puts "protocol_error"
+          client.puts encrypt({ :error => "failed to decrypt" }.to_json)
           client.close
           next
         end
@@ -107,7 +107,7 @@ begin
           client_input = JSON.parse(client_input)
         rescue JSON::ParserError
           debug "failed to parse json"
-          client.puts encrypt("protocol_error")
+          client.puts encrypt({ :error => "failed to parse" }.to_json)
           client.close
           next
         end
@@ -115,7 +115,7 @@ begin
         # Verify Input
         if !client_input["input"] || !client_input["input"].is_a?(Array)
             debug "invalid input"
-            client.puts encrypt("protocol_error")
+            client.puts encrypt({ :error => "invalid input" }.to_json)
             client.close
             next
         end
@@ -153,7 +153,7 @@ begin
         # Verify Input
         if !are_valid_args?(args, auth_file)
           debug "invalid args"
-          client.puts encrypt("protocol_error")
+          client.puts encrypt({ :error => "invalid arguments" }.to_json)
           client.close
           next
         end
