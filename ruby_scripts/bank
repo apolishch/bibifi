@@ -86,7 +86,12 @@ begin
   loop do
     begin
       Timeout::timeout(10) do
-        client = server.accept   # Wait for a client to connect
+        begin
+          client, client_sockaddr = server.accept_nonblock   # Wait for a client to connect
+        rescue Errno::EAGAIN, Errno::ECONNABORTED, Errno::EINTR, Errno::EWOULDBLOCK
+          IO.select([server])
+          retry  
+        end
         client_input = client.gets
         debug "received #{client_input}"
         begin
@@ -130,7 +135,6 @@ begin
             args[:"#{key}"] = client_input["input"][index + 1]
           end
         end
-
         # Verify Input
         if !are_valid_args?(args)
           debug "invalid args"
@@ -138,7 +142,6 @@ begin
           client.close
           next
         end
-
         # Execute Operations
         output = case args[:operation]
           when "-n"
@@ -154,7 +157,6 @@ begin
             debug "args: #{args}"
             exit(EXIT_CODE)
         end
-
         unless output
           debug "invalid output"
           exit(EXIT_CODE)
@@ -164,20 +166,19 @@ begin
           puts output.to_json         # prints on console
           STDOUT.flush
         end
-
         client.puts output.to_json    # prints on socket
         client.close
       end
     rescue => e
       if (e.class == Timeout::Error)
         puts "protocol_error"
+        STDOUT.flush
       else
         raise e
       end
     end
   end
 rescue => e
-  puts e.backtrace
   debug "generic error #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
   exit(EXIT_CODE)
 end
