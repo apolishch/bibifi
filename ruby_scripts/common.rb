@@ -23,7 +23,13 @@ def generate_hash(value)
 end
 
 def debug(msg)
-  puts msg if DEBUG
+  return false unless DEBUG
+  flag = "a"
+  flag = "w" unless File.exist?("debug.txt")
+
+  File.open("debug.txt", flag) do |f|
+    f << msg
+  end
 end
 
 def encrypt(plain_text)

@@ -14,9 +14,8 @@ def operation_n(args)
 end
 
 def operation_d(args)
-    if balance(args[:auth_file], args[:account]).nil?
-        return { :error => "Account not found"}
-    end
+    b = balance(args[:auth_file], args[:account])
+    return { :error => "Account not found"} if b.nil?
 
     unless add_entry(args[:auth_file], args[:account], "d", args[:operation_value], args[:atm_time])
         return { :error => "Replay attack detected"}

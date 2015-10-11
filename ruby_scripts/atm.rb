@@ -281,7 +281,7 @@ begin
 
       # Time to prevent replay attacks
       input << "atm_time"
-      input << generate_hash(Time.now.to_s)
+      input << generate_hash(Time.now.strftime('%Y%m%d%H%M%S%L'))
 
       message = {
         input: input,
