@@ -350,6 +350,11 @@ optparse = OptionParser.new do |opts|
   opts.separator  ""
   opts.separator  "Options"
 
+  text = "Help"
+  opts.on("-h","--help",text) do |input|
+    exit(EXIT_CODE)
+  end
+
   text = "The port that bank should listen on. The default is 3000."
   opts.on("-p <port>","",text) do |input|
     exit(EXIT_CODE) unless is_valid_port?(input)

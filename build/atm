@@ -243,6 +243,11 @@ optparse = OptionParser.new do |opts|
   opts.separator  ""
   opts.separator  "Options"
 
+  text = "Help"
+  opts.on("-h","--help",text) do |input|
+    exit(EXIT_CODE)
+  end
+
   # Account
   text = "The customer's account name."
   opts.on("-a <account>","",text) do |input|
