@@ -95,7 +95,7 @@ begin
         # Decrypt
         begin
           client_input = decrypt(client_input)
-        rescue OpenSSL::Cipher::CipherError => e
+        rescue
           debug "failed to decrypt: #{e.inspect}"
           client.puts encrypt({ :error => "failed to decrypt" }.to_json)
           client.close
