@@ -81,13 +81,12 @@ end
 # print "protocol_error" to stdout (followed by a newline)
 # and roll back (i.e., undo any changes made by) the current
 # transaction.
-time = nil
 server = TCPServer.new("127.0.0.1", port)
 begin
   loop do
     begin
       Timeout::timeout(10) do
-        client = server.accept    # Wait for a client to connect
+        client = server.accept   # Wait for a client to connect
         client_input = client.gets
         debug "received #{client_input}"
         begin
@@ -178,6 +177,7 @@ begin
     end
   end
 rescue => e
+  puts e.backtrace
   debug "generic error #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
   exit(EXIT_CODE)
 end
