@@ -95,7 +95,7 @@ begin
         # Decrypt
         begin
           client_input = decrypt(client_input)
-        rescue
+        rescue => e
           debug "failed to decrypt: #{e.inspect}"
           client.puts encrypt({ :error => "failed to decrypt" }.to_json)
           client.close
