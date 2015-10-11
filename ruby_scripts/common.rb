@@ -27,17 +27,25 @@ def debug(msg)
 end
 
 def encrypt(plain_text)
-	cipher = OpenSSL::Cipher::AES128.new(:CBC)
-	cipher.encrypt
-	cipher.key = $secret_key
-	cipher.update(plain_text) + cipher.final
+    cipher = OpenSSL::Cipher.new('aes-128-gcm')
+    cipher.encrypt
+    cipher.key = $secret_key
+    iv = cipher.random_iv
+    cipher.iv = iv
+    ciphertext = cipher.update(plain_text) + cipher.final
+
+    [ciphertext, iv, cipher.auth_tag].map{
+        |x| Base64.strict_encode64(x) }.join(":")
 end
 
-def decrypt(cipher_text)
-	cipher = OpenSSL::Cipher::AES128.new(:CBC)
-	cipher.decrypt
-	cipher.key = $secret_key
-	cipher.update(cipher_text) + cipher.final 
+def decrypt(text)
+    ciphertext, iv, auth_tag = text.split(":").map{ |x| Base64.decode64(x) }
+    cipher = OpenSSL::Cipher.new('aes-128-gcm')
+    cipher.decrypt
+    cipher.key = $secret_key
+    cipher.iv = iv
+    cipher.auth_tag = auth_tag
+    cipher.update(ciphertext) + cipher.final 
 end
 
 def sign(text)

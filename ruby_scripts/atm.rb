@@ -288,33 +288,48 @@ begin
         base64: false
       }.to_json
 
-      sock.print Base64.strict_encode64(encrypt(message))
+      sock.print encrypt(message)
       sock.close_write
       raw_result = sock.read
 
+      # Decrypt
+      begin
+        raw_result = decrypt(raw_result)
+      rescue OpenSSL::Cipher::CipherError => e
+        debug "failed to decrypt: #{e.inspect}"
+        exit(PROTOCOL_EXIT_CODE)
+        return
+      end
+
+      # JSON Parse
       begin
         result = JSON.parse(raw_result)
       rescue JSON::ParserError
         debug "json parser error"
         exit(PROTOCOL_EXIT_CODE)
+        return
       end
 
       # Exit when bank announce an error / violation
       if result["error"]
         debug "Exiting as bank said to #{result}"
         exit(EXIT_CODE)
+        return
       end
 
       STDOUT.puts raw_result
       STDOUT.flush
     }
   end
-rescue =>e 
+rescue => e
     # If an error is detected in the protocol's communication,
     # atm should exit with return code 63, while bank should
     # print "protocol_error" to stdout (followed by a newline)
     # and roll back (i.e., undo any changes made by) the current
     # transaction.
+    if (operation === "n" && e.class == Timeout::Error)
+      File.delete(card_file)
+    end
 
     debug "generic socket rescue: #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
     exit(PROTOCOL_EXIT_CODE)

@@ -6,7 +6,7 @@ cd ruby_scripts
 ./compile.sh
 
 # Play with atm and bank
-cd self-contained
+cd ../build
 ./bank &
 ./atm -a bob -n 10.00
 ./atm -a bob -d 15.00
