@@ -171,12 +171,9 @@ begin
           else
             debug "invalid operation"
             debug "args: #{args}"
-            exit(EXIT_CODE)
-        end
-
-        unless output
-          debug "invalid output"
-          exit(EXIT_CODE)
+            client.puts encrypt({ :error => "invalid operation" }.to_json)
+            client.close
+            next
         end
 
         unless output[:error]
