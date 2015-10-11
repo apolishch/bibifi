@@ -81,14 +81,14 @@ message_counter = 0
 begin
   loop do
     begin
+      begin
+         client, client_sockaddr = server.accept_nonblock   # Wait for a client to connect
+      rescue Errno::EAGAIN, Errno::ECONNABORTED, Errno::EINTR, Errno::EWOULDBLOCK
+        IO.select([server])
+        retry
+      end
+      
       Timeout::timeout(10) do
-        begin
-           client, client_sockaddr = server.accept_nonblock   # Wait for a client to connect
-        rescue Errno::EAGAIN, Errno::ECONNABORTED, Errno::EINTR, Errno::EWOULDBLOCK
-          IO.select([server])
-          retry
-        end
-
         client_input = client.gets  # Wait for a client input
         debug "received #{client_input}"
 
