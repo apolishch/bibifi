@@ -17,4 +17,4 @@ cd ../build
 echo $? # 255
 ```
 
-Requirement: ruby 2.1.2p95 or higher
+Requirement: ruby 2.1 or higher
