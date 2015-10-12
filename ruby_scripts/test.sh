@@ -28,4 +28,5 @@ cd "/root/install/tests/"
 ./run_test.py core/timeout1.json
 
 ./run_test.py extended-tests/02-nonameaccount.json
+./run_test.py extended-tests/help.json
 
