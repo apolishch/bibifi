@@ -2,6 +2,9 @@
 
 ```sh
 # Generate self-contained files
+# PS: only if you change something
+# by default they are already
+# "compiled"
 cd ruby_scripts
 ./compile.sh
 
