@@ -59,35 +59,15 @@ def operation_g(args)
     }
 end
 
+$entries = []
 
 def add_entry(auth_file, user, operation, value, atm_time)
-    current_time = Time.now
-    to_sign = "#{user}#{operation}#{value}#{atm_time}#{current_time}"
-    signature = sign(to_sign)
-
     # Security Check
     # Verify duplicate (replay attack attempts)
-    replay_attack_attempt = false
-    entries = File.open(auth_file, "r").read
-    entries.split("\n").each do |e|
-        values = e.split(";")
-        next unless validate_entry(values)
-
-        if values[0..3] == [user, operation, value, atm_time]
-            replay_attack_attempt = true
-            break
-        end
-    end
-
-    if replay_attack_attempt
-        return false
-    end
+    return false if $entries.include?([user, operation, value, atm_time])
 
     # Add entry
-    File.open(auth_file, "a") do |f|
-        f << [user, operation, value, atm_time, current_time, signature].join(";") + "\n"
-    end
-
+    $entries << [user, operation, value, atm_time]
     return true
 end
 
@@ -96,10 +76,7 @@ def balance(auth_file, user)
     all = File.open(auth_file, "r").read
     total = 0.0
     account_exists = false
-    all.split("\n").each do |e|
-        values = e.split(";")
-        next unless validate_entry(values)
-
+    $entries.each do |values|
         if values[0] == user
             account_exists = true
             if ["n","d"].include?(values[1])
@@ -116,9 +93,3 @@ def balance(auth_file, user)
     return total.round(2)
 end
 
-def validate_entry(values)
-    return false if values.count != 6
-    to_sign = values[0..4].join("")
-    
-    return sign(to_sign) == values.last
-end
