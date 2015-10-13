@@ -281,7 +281,6 @@ end
 
 def balance(auth_file, user)
     # return nil if user does not exist
-    all = File.open(auth_file, "r").read
     total = 0.0
     account_exists = false
     $entries.each do |values|
