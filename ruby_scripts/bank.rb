@@ -131,8 +131,8 @@ begin
           key = nil
 
           case v
-            when "atm_time"
-              key = "atm_time"
+            when "message_id"
+              key = "message_id"
             when "-a"
               key = "account"
             when "-c"

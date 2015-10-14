@@ -21,6 +21,12 @@ def generate_hash(value)
     ).strip()
 end
 
+# Generator of 128-bit pseudo random numbers
+# Returns number in hex format in a string
+def generate_message_id()
+    OpenSSL::Random.random_bytes(16).unpack("H*")[0]
+end
+
 def debug(msg)
   return false unless DEBUG
   flag = "a"
@@ -149,21 +155,21 @@ def is_valid_card_file?(card_file)
   return result
 end
 
-def is_valid_atm_time?(atm_time)
-  if atm_time.length >= 1 \
-    && atm_time.length <= 255 \
-    && atm_time =~ /\A[a-z0-9_\-\.]+\Z/
+def is_valid_message_id?(message_id)
+  if message_id.length >= 1 \
+    && message_id.length <= 255 \
+    && message_id =~ /\A[a-z0-9_\-\.]+\Z/
       return true
   end
 
-  debug "Invalid atm_time: #{atm_time}"
+  debug "Invalid message_id: #{message_id}"
   false
 end
 
 def are_valid_args?(args, auth_file)
   # ATM time
-  if !args[:atm_time] || !is_valid_atm_time?(args[:atm_time])
-    debug "are_valid_args? invalid atm time"
+  if !args[:message_id] || !is_valid_message_id?(args[:message_id])
+    debug "are_valid_args? invalid message ID"
     return false
   end
 
@@ -211,7 +217,7 @@ def operation_n(args)
         return { :error => "Account already exists"}
     end
 
-    unless add_entry(args[:auth_file], args[:account], "n", args[:operation_value], args[:atm_time])
+    unless add_entry(args[:auth_file], args[:account], "n", args[:operation_value], args[:message_id])
         return { :error => "Replay attack detected"}
     end
 
@@ -225,7 +231,7 @@ def operation_d(args)
     b = balance(args[:auth_file], args[:account])
     return { :error => "Account not found"} if b.nil?
 
-    unless add_entry(args[:auth_file], args[:account], "d", args[:operation_value], args[:atm_time])
+    unless add_entry(args[:auth_file], args[:account], "d", args[:operation_value], args[:message_id])
         return { :error => "Replay attack detected"}
     end
 
@@ -243,7 +249,7 @@ def operation_w(args)
         return { :error => "Invalid amount"}
     end
 
-    unless add_entry(args[:auth_file], args[:account], "w", args[:operation_value], args[:atm_time])
+    unless add_entry(args[:auth_file], args[:account], "w", args[:operation_value], args[:message_id])
         return { :error => "Replay attack detected"}
     end
 
@@ -257,7 +263,7 @@ def operation_g(args)
     b = balance(args[:auth_file], args[:account])
     return { :error => "Account not found"} if b.nil?
 
-    unless add_entry(args[:auth_file], args[:account], "g", nil, args[:atm_time])
+    unless add_entry(args[:auth_file], args[:account], "g", nil, args[:message_id])
         return { :error => "Replay attack detected"}
     end
 
@@ -269,13 +275,13 @@ end
 
 $entries = []
 
-def add_entry(auth_file, user, operation, value, atm_time)
+def add_entry(auth_file, user, operation, value, message_id)
     # Security Check
     # Verify duplicate (replay attack attempts)
-    return false if $entries.include?([user, operation, value, atm_time])
+    return false if $entries.include?([user, operation, value, message_id])
 
     # Add entry
-    $entries << [user, operation, value, atm_time]
+    $entries << [user, operation, value, message_id]
     return true
 end
 
@@ -433,8 +439,8 @@ begin
           key = nil
 
           case v
-            when "atm_time"
-              key = "atm_time"
+            when "message_id"
+              key = "message_id"
             when "-a"
               key = "account"
             when "-c"
