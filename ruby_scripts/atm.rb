@@ -253,6 +253,7 @@ end
 
 ## TCP Communication w/ BANK
 # 
+processed_message_ids = []
 
 begin
   Timeout::timeout(10) do
@@ -322,6 +323,12 @@ begin
         exit(PROTOCOL_EXIT_CODE)
         return
       end
+
+      if processed_message_ids.include?(message_id)
+        debug "Replay attack on atm detected"
+        exit(PROTOCOL_EXIT_CODE)
+      end
+      processed_message_ids << message_id
 
       STDOUT.puts JSON.generate(result['body'])
       STDOUT.flush

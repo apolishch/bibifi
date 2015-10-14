@@ -123,9 +123,10 @@ begin
             client.puts encrypt({ :error => "invalid input" }.to_json)
             client.close
             next
-        else
-          message_id = client_input['input'].last
         end
+
+        # Set message id
+        message_id = client_input['input'].last
 
         # Extract arguments from client input
         args = {}
@@ -185,7 +186,7 @@ begin
         end
 
         unless output[:body][:error]
-          STDOUT.puts output[:body].to_json           # prints on console
+          STDOUT.puts output[:body].to_json    # prints on console
           STDOUT.flush
         end
         
