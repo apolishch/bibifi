@@ -3,7 +3,7 @@ def operation_n(args)
         return { :error => "Account already exists"}
     end
 
-    unless add_entry(args[:auth_file], args[:account], "n", args[:operation_value], args[:atm_time])
+    unless add_entry(args[:auth_file], args[:account], "n", args[:operation_value], args[:message_id])
         return { :error => "Replay attack detected"}
     end
 
@@ -17,7 +17,7 @@ def operation_d(args)
     b = balance(args[:auth_file], args[:account])
     return { :error => "Account not found"} if b.nil?
 
-    unless add_entry(args[:auth_file], args[:account], "d", args[:operation_value], args[:atm_time])
+    unless add_entry(args[:auth_file], args[:account], "d", args[:operation_value], args[:message_id])
         return { :error => "Replay attack detected"}
     end
 
@@ -35,7 +35,7 @@ def operation_w(args)
         return { :error => "Invalid amount"}
     end
 
-    unless add_entry(args[:auth_file], args[:account], "w", args[:operation_value], args[:atm_time])
+    unless add_entry(args[:auth_file], args[:account], "w", args[:operation_value], args[:message_id])
         return { :error => "Replay attack detected"}
     end
 
@@ -49,7 +49,7 @@ def operation_g(args)
     b = balance(args[:auth_file], args[:account])
     return { :error => "Account not found"} if b.nil?
 
-    unless add_entry(args[:auth_file], args[:account], "g", nil, args[:atm_time])
+    unless add_entry(args[:auth_file], args[:account], "g", nil, args[:message_id])
         return { :error => "Replay attack detected"}
     end
 
@@ -61,13 +61,13 @@ end
 
 $entries = []
 
-def add_entry(auth_file, user, operation, value, atm_time)
+def add_entry(auth_file, user, operation, value, message_id)
     # Security Check
     # Verify duplicate (replay attack attempts)
-    return false if $entries.include?([user, operation, value, atm_time])
+    return false if $entries.include?([user, operation, value, message_id])
 
     # Add entry
-    $entries << [user, operation, value, atm_time]
+    $entries << [user, operation, value, message_id]
     return true
 end
 

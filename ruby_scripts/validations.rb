@@ -90,21 +90,21 @@ def is_valid_card_file?(card_file)
   return result
 end
 
-def is_valid_atm_time?(atm_time)
-  if atm_time.length >= 1 \
-    && atm_time.length <= 255 \
-    && atm_time =~ /\A[a-z0-9_\-\.]+\Z/
+def is_valid_message_id?(message_id)
+  if message_id.length >= 1 \
+    && message_id.length <= 255 \
+    && message_id =~ /\A[a-z0-9_\-\.]+\Z/
       return true
   end
 
-  debug "Invalid atm_time: #{atm_time}"
+  debug "Invalid message_id: #{message_id}"
   false
 end
 
 def are_valid_args?(args, auth_file)
   # ATM time
-  if !args[:atm_time] || !is_valid_atm_time?(args[:atm_time])
-    debug "are_valid_args? invalid atm time"
+  if !args[:message_id] || !is_valid_message_id?(args[:message_id])
+    debug "are_valid_args? invalid message ID"
     return false
   end
 

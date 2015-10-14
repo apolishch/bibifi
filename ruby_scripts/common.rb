@@ -21,6 +21,12 @@ def generate_hash(value)
     ).strip()
 end
 
+# Generator of 128-bit pseudo random numbers
+# Returns number in hex format in a string
+def generate_message_id()
+    OpenSSL::Random.random_bytes(16).unpack("H*")[0]
+end
+
 def debug(msg)
   return false unless DEBUG
   flag = "a"

@@ -285,8 +285,8 @@ begin
       input << operation_value if operation_value
 
       # Time to prevent replay attacks
-      input << "atm_time"
-      input << generate_hash(Time.now.strftime('%Y%m%d%H%M%S%L'))
+      input << "message_id"
+      input << generate_message_id()
 
       message = {
         input: input,
