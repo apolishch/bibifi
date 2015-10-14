@@ -118,11 +118,13 @@ begin
         end
 
         # Verify Input
-        if !client_input["input"] || !client_input["input"].is_a?(Array)
+        if !client_input["input"] || !client_input["input"].is_a?(Array) || !client_input['input'][-2] == 'message_id'
             debug "invalid input"
             client.puts encrypt({ :error => "invalid input" }.to_json)
             client.close
             next
+        else
+          message_id = client_input['input'].last
         end
 
         # Extract arguments from client input
@@ -164,7 +166,8 @@ begin
         end
 
         # Execute Operations
-        output = case args[:operation]
+        output = {}
+        output[:body] = case args[:operation]
           when "-n"
             operation_n(args)
           when "-d"
@@ -181,13 +184,15 @@ begin
             next
         end
 
-        unless output[:error]
-          STDOUT.puts output.to_json           # prints on console
+        unless output[:body][:error]
+          STDOUT.puts output[:body].to_json           # prints on console
           STDOUT.flush
         end
-
+        
+        output[:message_id] = message_id
         client.puts encrypt(output.to_json)    # prints on socket
         client.close
+        message_id = nil
         next
       end
 
@@ -201,6 +206,5 @@ begin
     end
   end
 rescue => e
-  debug "generic error #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
   exit(EXIT_CODE)
 end

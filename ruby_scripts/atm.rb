@@ -176,15 +176,9 @@ card_file       = options[:card_file] || "#{options[:account]}.card"
 
 
 # Mandatory parameters verification
-["account", "operation"].each do |var|
-    eval(
-        <<-VERIFICATION
-            unless #{var}
-                debug "Not specified argument: #{var}"
-                exit(EXIT_CODE)
-            end
-        VERIFICATION
-    )
+unless account && operation
+  debug "Not specified argument, one of account: #{account}, operation: #{operation}"
+  exit(EXIT_CODE)
 end
 
 # If the specified file cannot be opened,
@@ -285,8 +279,9 @@ begin
       input << operation_value if operation_value
 
       # Time to prevent replay attacks
+      message_id = generate_message_id()
       input << "message_id"
-      input << generate_message_id()
+      input << message_id
 
       message = {
         input: input,
@@ -316,13 +311,19 @@ begin
       end
 
       # Exit when bank announce an error / violation
-      if result["error"]
+      if result['body']["error"]
         debug "Exiting as bank said to #{result}"
         exit(EXIT_CODE)
         return
       end
 
-      STDOUT.puts raw_result
+      if (result['message_id'] != message_id)
+        debug "Exiting as message_ids do not match"
+        exit(PROTOCOL_EXIT_CODE)
+        return
+      end
+
+      STDOUT.puts JSON.generate(result['body'])
       STDOUT.flush
     }
   end
