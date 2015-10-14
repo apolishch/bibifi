@@ -514,5 +514,6 @@ begin
     end
   end
 rescue => e
+  debug "generic error #{e.class}: #{e.message} \nBacktrace #{e.backtrace}"
   exit(EXIT_CODE)
 end
