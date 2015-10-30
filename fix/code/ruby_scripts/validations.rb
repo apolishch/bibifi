@@ -54,16 +54,15 @@ def is_valid_ip?(ip)
 end
 
 def is_valid_port?(port)
-  # Length check
-  if port.length > 4096
-    debug "Invalid length for port (>4096)"
+  # Regex check
+  unless port =~ /\A([1-9]{1})([0-9]{3,4})\z/
+    debug "Invalid port"
     return false
   end
 
-  # p==0 means invalid integer
   # p<1024 and p>65535 are invalid
   p = port.to_i
-  if port[0]!="0" && p!=0 && p >= 1024 && p <= 65535
+  if p >= 1024 && p <= 65535
     return true
   end
   
