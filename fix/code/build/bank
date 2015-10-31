@@ -115,6 +115,16 @@ def is_valid_ip?(ip)
     return false
   end
 
+  if ["0.0.0.0","10.0.0.0","172.16.0.0","192.168.0.0"].include?(ip)
+    debug "Invalid ip -- network address"
+    return false
+  end
+
+  if ["255.255.255.255","10.255.255.255","172.31.255.255","192.168.255.255"].include?(ip)
+    debug "Invalid ip -- broadcast address"
+    return false
+  end
+
   ip.split(".").each do |octect|
     if octect.start_with?("0") && octect.length > 1
       debug "Invalid ip -- cant start with 0"
