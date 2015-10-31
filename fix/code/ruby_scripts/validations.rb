@@ -45,12 +45,24 @@ def is_valid_account?(account)
 end
 
 def is_valid_ip?(ip)
-  if ip =~ /^(\d{1,3}).(\d{1,3}).(\d{1,3}).(\d{1,3})$/
-    return true
+  unless ip =~ /\A([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3}).([0-9]{1,3})\z/
+    debug "Invalid ip #{ip}"
+    return false
   end
 
-  debug "Invalid ip #{ip}"
-  false
+  ip.split(".").each do |octect|
+    if octect.start_with?("0") && octect.length > 1
+      debug "Invalid ip -- cant start with 0"
+      return false
+    end
+
+    if octect.to_i > 255
+      debug "Invalid ip -- #{octect} cant be greater than 255"
+      return false
+    end
+  end
+
+  true
 end
 
 def is_valid_port?(port)
