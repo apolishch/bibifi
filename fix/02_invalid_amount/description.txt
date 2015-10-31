@@ -1,0 +1,1 @@
+Previously the amount validation was not considering a period as mandatory, thus leveraging our regex vulnerable. We updated it and now attacks with improper amounts should not work anymore.
