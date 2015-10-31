@@ -1,1 +1,1 @@
-d
+Many tests took advantage of the poor validation of the ip address. We've apply a regex that now allows inputs only accordingly to the specs. Before we type casted strings to integer, ignoring wrong inputs and just extracting numbers.
