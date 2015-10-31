@@ -35,6 +35,7 @@ optparse = OptionParser.new do |opts|
   text = "The customer's account name."
   opts.on("-a <account>","",text) do |input|
     exit(EXIT_CODE) unless is_valid_account?(input)
+    exit(EXIT_CODE) unless options[:account].nil?
     options[:account] = input
   end
 
@@ -42,6 +43,7 @@ optparse = OptionParser.new do |opts|
   text = "The name of the auth file. If not supplied, defaults to \"bank.auth\""
   opts.on("-s <auth-file>","",text) do |input|
     exit(EXIT_CODE) unless is_valid_auth_file?(input)
+    exit(EXIT_CODE) unless options[:auth_file].nil?
     options[:auth_file] = input
   end
 
@@ -49,6 +51,7 @@ optparse = OptionParser.new do |opts|
   text = "The IP address that bank is running on. The default value is \"127.0.0.1\"."
   opts.on("-i <ip-address>","",text) do |input|
     exit(EXIT_CODE) unless is_valid_ip?(input)
+    exit(EXIT_CODE) unless options[:ip].nil?
     options[:ip] = input
   end
 
@@ -56,6 +59,7 @@ optparse = OptionParser.new do |opts|
   text = "The port that bank should listen on. The default is 3000."
   opts.on("-p <port>","",text) do |input|
     exit(EXIT_CODE) unless is_valid_port?(input)
+    exit(EXIT_CODE) unless options[:port].nil?
     options[:port] = input
   end
 
@@ -65,6 +69,7 @@ optparse = OptionParser.new do |opts|
   "account name was 55555, the default card file is \"55555.card\"."
   opts.on("-c <card-file>","",text) do |input|
     exit(EXIT_CODE) unless is_valid_card_file?(input)
+    exit(EXIT_CODE) unless options[:card_file].nil?
     options[:card_file] = input
   end
 
