@@ -1,0 +1,1 @@
+We now verify if the option passed as an argument was set before. This way, when we identify duplicates, we halt atm with code 255.
