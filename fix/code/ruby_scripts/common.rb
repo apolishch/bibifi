@@ -43,7 +43,7 @@ def encrypt(plain_text)
     cipher.key = $secret_key
     iv = cipher.random_iv
     cipher.iv = iv
-    ciphertext = cipher.update(plain_text) + cipher.final
+    ciphertext = cipher.update(addPadding(plain_text)) + cipher.final
 
     [ciphertext, iv, cipher.auth_tag].map{
         |x| Base64.strict_encode64(x) }.join(":")
@@ -56,7 +56,21 @@ def decrypt(text)
     cipher.key = $secret_key
     cipher.iv = iv
     cipher.auth_tag = auth_tag
-    cipher.update(ciphertext) + cipher.final 
+    removePadding(cipher.update(ciphertext)) + cipher.final
+end
+
+def addPadding(s)
+    p = "||"
+    random_string = OpenSSL::Random.random_bytes(125).unpack("H*")[0]
+    (1..(250 - p.size - s.size)).each do |i|
+        p += random_string[i]
+    end
+
+    return s + p
+end
+
+def removePadding(s)
+    s.split("||").first
 end
 
 # All other errors, specified throughout this document or
