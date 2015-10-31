@@ -1,0 +1,1 @@
+ to prevent side channel leaks based on the ciphertext length, we've added padding to make all ciphertexts have the same length.
