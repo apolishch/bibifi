@@ -1,0 +1,1 @@
+The IP validation before used a simple regex that extracted 3 digits every each period. Now it verifies if those extracted values correspond to a valid IP address and checks if it isn't a network address or a broadcast address as pointed on https://en.wikipedia.org/wiki/Reserved_IP_addresses
