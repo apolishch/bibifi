@@ -61,8 +61,8 @@ end
 
 def addPadding(s)
     p = "||"
-    random_string = OpenSSL::Random.random_bytes(125).unpack("H*")[0]
-    (1..(250 - p.size - s.size)).each do |i|
+    random_string = OpenSSL::Random.random_bytes(250).unpack("H*")[0]
+    (1..(500 - p.size - s.size)).each do |i|
         p += random_string[i]
     end
 
