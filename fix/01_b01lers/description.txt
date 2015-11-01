@@ -1,0 +1,2 @@
+To prevent side channel leaks based on the ciphertext length, we've added padding to make all ciphertexts have the same length.
+It needed a second commit to increase the padding length. This is a complement for commit 0f14a790e529c448d8b6cc63edfc3fb27b89285f
