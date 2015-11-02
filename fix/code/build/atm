@@ -415,6 +415,9 @@ optparse = OptionParser.new do |opts|
 end
 
 begin
+  if (ARGV.include? "--")
+    raise OptionParser::InvalidOption
+  end
   optparse.parse!
 rescue
   debug "invalid arguments #{options.inspect}"
