@@ -1,0 +1,1 @@
+We now treat parameters much more generically in our bank, explicitly marking some as requiring parameters, rather then simply searching the input for patterns.

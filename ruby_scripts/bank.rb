@@ -132,19 +132,20 @@ begin
         args = {}
         client_input["input"].each_with_index do |v, index|
           key = nil
-
-          case v
-            when "message_id"
-              key = "message_id"
-            when "-a"
-              key = "account"
-            when "-c"
-              key = "card_file"
-            when "-s"
-              key = "auth_file"
-            when "-n", "-d", "-w", "-g"
-              args[:operation] = v
-              key = "operation_value" unless v=="-g"  # -g doesn't have a value
+          if(index % 2 == 0)
+            case v
+              when "message_id"
+                key = "message_id"
+              when "-a"
+                key = "account"
+              when "-c"
+                key = "card_file"
+              when "-s"
+                key = "auth_file"
+              when "-n", "-d", "-w", "-g"
+                args[:operation] = v
+                key = "operation_value" unless v=="-g"  # -g doesn't have a value
+            end
           end
 
           # Index check -- just to make sure that there is
