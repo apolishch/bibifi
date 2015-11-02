@@ -130,31 +130,42 @@ begin
 
         # Extract arguments from client input
         args = {}
+        paramExpected = false
+        key = nil
         client_input["input"].each_with_index do |v, index|
-          key = nil
-
-          case v
-            when "message_id"
-              key = "message_id"
-            when "-a"
-              key = "account"
-            when "-c"
-              key = "card_file"
-            when "-s"
-              key = "auth_file"
-            when "-n", "-d", "-w", "-g"
-              args[:operation] = v
-              key = "operation_value" unless v=="-g"  # -g doesn't have a value
-          end
-
+          if(!paramExpected)
+            case v
+              when "message_id"
+                key = "message_id" 
+                paramExpected = true
+              when "-a"
+                key = "account"
+                paramExpected = true
+              when "-c"
+                key = "card_file"
+                paramExpected = true
+              when "-s"
+                key = "auth_file"
+                paramExpected = true
+              when "-n", "-d", "-w"
+                args[:operation] = v
+                key = "operation_value"
+                paramExpected = true
+              when "-g"
+                args[:operation] = v
+            end
           # Index check -- just to make sure that there is
           # a next value followed by the key. E.g.,
           # When the key is "-n" we supposed that there is
           # the next value, which will be amount for instance.
           # So we check if the index exists (index+1) as some
           # keys doesn't need indexes, such as "-g".
-          if key && (index + 1 <= client_input["input"].count)
-            args[:"#{key}"] = client_input["input"][index + 1]
+          else
+            paramExpected = false
+            if key && (index <= client_input["input"].count)
+              args[:"#{key}"] = client_input["input"][index]
+            end
+            key = nil
           end
         end
 
