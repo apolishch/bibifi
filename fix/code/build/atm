@@ -592,6 +592,9 @@ begin
 
       # Exit when bank announce an error / violation
       if result['body']["error"]
+        if operation == "n"
+          File.delete(card_file)
+        end
         debug "Exiting as bank said to #{result}"
         exit(EXIT_CODE)
         return
