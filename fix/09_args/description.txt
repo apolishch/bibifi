@@ -1,0 +1,1 @@
+-- has a special meaning on the unix bash shell, as such it needed to be handled as a special case to fulfill the requirements to the letter
