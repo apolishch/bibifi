@@ -1,0 +1,1 @@
+Validate that bank did not error out, and if it does, delete card file before atm exits
